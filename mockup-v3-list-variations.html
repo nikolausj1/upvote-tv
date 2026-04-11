@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Upvote TV - Full-Width List Variations</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: #0a0a0c;
+    color: #f0f0f2;
+    overflow-x: hidden;
+  }
+
+  /* Tab bar */
+  .tab-bar {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 200;
+    background: rgba(10,10,12,0.95);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    padding: 16px 48px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .tab-bar .label {
+    font-size: 13px;
+    color: #555;
+    font-weight: 500;
+    margin-right: 6px;
+  }
+  .tab-btn {
+    padding: 8px 18px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #666;
+    cursor: pointer;
+    border: 1px solid rgba(255,255,255,0.06);
+    background: none;
+    transition: all 0.2s;
+  }
+  .tab-btn.active {
+    background: rgba(255,255,255,0.1);
+    color: #eee;
+    border-color: rgba(255,255,255,0.15);
+  }
+  .tab-btn:hover:not(.active) { background: rgba(255,255,255,0.03); color: #999; }
+
+  .variation { display: none; padding-top: 72px; }
+  .variation.active { display: block; }
+  .tv-safe { padding: 32px 60px 60px; max-width: 1920px; margin: 0 auto; }
+
+  /* Shared pieces */
+  .desc-box {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 12px;
+    padding: 20px 24px;
+    margin-bottom: 28px;
+    font-size: 14px;
+    line-height: 1.6;
+    color: #888;
+  }
+  .desc-box strong { color: #bbb; }
+
+  .section-label {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 1.4px;
+    text-transform: uppercase;
+    color: #444;
+    margin-bottom: 14px;
+    padding-left: 4px;
+  }
+  .section-gap { margin-top: 36px; }
+
+  .dot-new {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #4ca1ff;
+    box-shadow: 0 0 8px rgba(76,161,255,0.35);
+    flex-shrink: 0;
+  }
+  .check-done {
+    font-size: 14px; color: #3a3a3a; flex-shrink: 0;
+  }
+  .badge {
+    font-size: 10px; font-weight: 600; letter-spacing: 0.5px;
+    text-transform: uppercase;
+    padding: 3px 8px; border-radius: 4px;
+    flex-shrink: 0;
+  }
+  .badge.video   { color: #e06060; background: rgba(224,96,96,0.10); }
+  .badge.image   { color: #60b0e0; background: rgba(96,176,224,0.10); }
+  .badge.gallery { color: #b080e0; background: rgba(176,128,224,0.10); }
+  .badge.text    { color: #80c080; background: rgba(128,192,128,0.10); }
+  .badge.youtube { color: #e06060; background: rgba(224,96,96,0.10); }
+  .badge.link    { color: #c0a060; background: rgba(192,160,96,0.10); }
+
+  .meta { font-size: 13px; color: #555; }
+  .meta .sub { color: #4a9aef; font-weight: 500; }
+  .meta .sep { display: inline-block; width: 3px; height: 3px; border-radius: 50%; background: #3a3a3a; margin: 0 8px; vertical-align: middle; }
+
+  /* ================================================
+     V1: Clean & Airy - emphasis on whitespace
+     ================================================ */
+  .v1-row {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 20px 28px;
+    border-radius: 16px;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.15s, box-shadow 0.25s;
+    margin-bottom: 6px;
+  }
+  .v1-row:hover, .v1-row.focused {
+    background: rgba(255,255,255,0.055);
+    transform: scale(1.008);
+    box-shadow: 0 0 0 1.5px rgba(255,255,255,0.08), 0 6px 20px rgba(0,0,0,0.25);
+  }
+  .v1-row .thumb {
+    width: 100px; height: 68px;
+    border-radius: 10px; object-fit: cover;
+    flex-shrink: 0; background: #141418;
+  }
+  .v1-row.watched .thumb { opacity: 0.55; }
+  .v1-row .text-col { flex: 1; min-width: 0; }
+  .v1-row .title {
+    font-size: 18px; font-weight: 500; line-height: 1.45; color: #eee;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .v1-row.watched .title { color: #777; }
+  .v1-row .row-meta {
+    display: flex; align-items: center; gap: 0; margin-top: 6px;
+  }
+  .v1-row .right-col {
+    display: flex; align-items: center; gap: 14px; flex-shrink: 0;
+  }
+
+  /* Text post placeholder thumb */
+  .thumb-text {
+    width: 100px; height: 68px; border-radius: 10px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; font-weight: 700;
+  }
+  .thumb-text.green  { background: linear-gradient(135deg,#10181a,#121e16); color: rgba(128,192,128,0.3); }
+  .thumb-text.blue   { background: linear-gradient(135deg,#101418,#121420); color: rgba(96,160,224,0.3); }
+  .thumb-text.amber  { background: linear-gradient(135deg,#181410,#1e1a12); color: rgba(192,160,96,0.3); }
+  .thumb-text.purple { background: linear-gradient(135deg,#141018,#1a1220); color: rgba(176,128,224,0.3); }
+
+  /* ================================================
+     V2: Two-line cards with subtle dividers
+     ================================================ */
+  .v2-row {
+    display: flex;
+    align-items: center;
+    gap: 22px;
+    padding: 22px 0;
+    cursor: pointer;
+    transition: background 0.2s, padding 0.15s;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    margin: 0 28px;
+  }
+  .v2-row:hover, .v2-row.focused {
+    background: rgba(255,255,255,0.04);
+    margin: 0;
+    padding-left: 28px;
+    padding-right: 28px;
+    border-radius: 14px;
+    border-bottom-color: transparent;
+  }
+  .v2-row .indicator {
+    width: 4px; height: 48px; border-radius: 2px; flex-shrink: 0;
+    background: #4ca1ff;
+  }
+  .v2-row.watched .indicator { background: transparent; }
+  .v2-row .text-col { flex: 1; min-width: 0; }
+  .v2-row .title {
+    font-size: 17px; font-weight: 500; line-height: 1.4; color: #ddd;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .v2-row.watched .title { color: #666; }
+  .v2-row .row-meta { display: flex; align-items: center; margin-top: 5px; }
+  .v2-row .right-col {
+    display: flex; align-items: center; gap: 14px; flex-shrink: 0;
+  }
+  .v2-row .thumb {
+    width: 88px; height: 60px;
+    border-radius: 8px; object-fit: cover;
+    flex-shrink: 0; background: #141418;
+  }
+  .v2-row.watched .thumb { opacity: 0.5; }
+
+  /* ================================================
+     V3: Bold titles, no thumbnails at all
+     ================================================ */
+  .v3-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 22px 28px;
+    border-radius: 16px;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.15s, box-shadow 0.2s;
+    margin-bottom: 4px;
+  }
+  .v3-row:hover, .v3-row.focused {
+    background: rgba(255,255,255,0.055);
+    transform: scale(1.006);
+    box-shadow: 0 0 0 1.5px rgba(255,255,255,0.08), 0 4px 16px rgba(0,0,0,0.2);
+  }
+  .v3-row .status-col {
+    padding-top: 8px;
+    flex-shrink: 0;
+    width: 12px;
+    display: flex;
+    justify-content: center;
+  }
+  .v3-row .text-col { flex: 1; min-width: 0; }
+  .v3-row .title {
+    font-size: 20px; font-weight: 600; line-height: 1.4; color: #eee;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .v3-row.watched .title { color: #666; font-weight: 500; }
+  .v3-row .row-meta { display: flex; align-items: center; margin-top: 8px; }
+  .v3-row .right-col {
+    display: flex; align-items: center; gap: 12px; flex-shrink: 0;
+    padding-top: 6px;
+  }
+
+  /* ================================================
+     V4: Card-style rows with background tint
+     ================================================ */
+  .v4-row {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 20px 26px;
+    border-radius: 16px;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.15s, box-shadow 0.25s;
+    margin-bottom: 8px;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.03);
+  }
+  .v4-row:hover, .v4-row.focused {
+    background: rgba(255,255,255,0.06);
+    border-color: rgba(255,255,255,0.08);
+    transform: scale(1.008);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+  }
+  .v4-row.watched {
+    background: rgba(255,255,255,0.01);
+    border-color: rgba(255,255,255,0.02);
+  }
+  .v4-row .thumb {
+    width: 96px; height: 64px;
+    border-radius: 8px; object-fit: cover;
+    flex-shrink: 0; background: #141418;
+  }
+  .v4-row.watched .thumb { opacity: 0.5; }
+  .v4-row .text-col { flex: 1; min-width: 0; }
+  .v4-row .title {
+    font-size: 17px; font-weight: 500; line-height: 1.4; color: #eee;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .v4-row.watched .title { color: #777; }
+  .v4-row .row-meta { display: flex; align-items: center; margin-top: 6px; }
+  .v4-row .right-col {
+    display: flex; align-items: center; gap: 14px; flex-shrink: 0;
+  }
+  .v4-row .type-icon {
+    width: 40px; height: 40px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; flex-shrink: 0;
+  }
+  .v4-row .type-icon.video   { background: rgba(224,96,96,0.1); color: #e06060; }
+  .v4-row .type-icon.image   { background: rgba(96,176,224,0.1); color: #60b0e0; }
+  .v4-row .type-icon.gallery { background: rgba(176,128,224,0.1); color: #b080e0; }
+  .v4-row .type-icon.text    { background: rgba(128,192,128,0.1); color: #80c080; }
+  .v4-row .type-icon.youtube { background: rgba(224,96,96,0.1); color: #e06060; }
+  .v4-row .type-icon.link    { background: rgba(192,160,96,0.1); color: #c0a060; }
+
+  @media (max-width: 1200px) {
+    .tv-safe { padding: 24px 32px 48px; }
+    .v1-row .title, .v3-row .title { font-size: 16px; }
+    .v1-row .thumb, .v4-row .thumb { width: 80px; height: 54px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="tab-bar">
+  <span class="label">Variation:</span>
+  <button class="tab-btn active" onclick="show('v1')">1: Clean & Airy</button>
+  <button class="tab-btn" onclick="show('v2')">2: Divider Lines</button>
+  <button class="tab-btn" onclick="show('v3')">3: No Thumbnails</button>
+  <button class="tab-btn" onclick="show('v4')">4: Soft Cards</button>
+</div>
+
+<!-- ============================================
+     V1: Clean & Airy
+     ============================================ -->
+<div class="variation active" id="v1">
+  <div class="tv-safe">
+    <div class="desc-box">
+      <strong>Variation 1: Clean & Airy.</strong> Generous padding, subtle hover state, thumbnail on the left as a visual anchor. Title is the dominant element. Plenty of breathing room between rows. Closest to the original Layout A but refined.
+    </div>
+    <div class="section-label">New</div>
+    <div class="v1-row focused">
+      <img class="thumb" src="https://images.unsplash.com/photo-1531366936337-7c912a4589a7?w=240&h=160&fit=crop" alt="">
+      <div class="text-col">
+        <div class="title">Incredible aurora borealis captured from my backyard last night in northern Minnesota</div>
+        <div class="row-meta meta"><span class="sub">r/space</span><span class="sep"></span>3 hours ago</div>
+      </div>
+      <div class="right-col"><span class="badge image">Image</span><div class="dot-new"></div></div>
+    </div>
+    <div class="v1-row">
+      <img class="thumb" src="https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=240&h=160&fit=crop" alt="">
+      <div class="text-col">
+        <div class="title">I finally perfected my grandmother's pasta recipe after 2 years of trying</div>
+        <div class="row-meta meta"><span class="sub">r/Cooking</span><span class="sep"></span>5 hours ago</div>
+      </div>
+      <div class="right-col"><span class="badge video">Video</span><div class="dot-new"></div></div>
+    </div>
+    <div class="v1-row">
+      <img class="thumb" src="https://images.unsplash.com/photo-1446776811953-b23d57bd21aa?w=240&h=160&fit=crop" alt="">
+      <div class="text-col">
+        <div class="title">New James Webb photos just dropped - 12 images of galaxies we've never seen before</div>
+        <div class="row-meta meta"><span class="sub">r/space</span><span class="sep"></span>7 hours ago</div>
+      </div>
+      <div class="right-col"><span class="badge gallery">Gallery</span><div class="dot-new"></div></div>
+    </div>
+    <div class="v1-row">
+      <div class="thumb-text green">Aa</div>
+      <div class="text-col">
+        <div class="title">After 10 years as a software engineer, here's what I wish someone told me on day one</div>
+        <div class="row-meta meta"><span class="sub">r/cscareerquestions</span><span class="sep"></span>9 hours ago</div>
+      </div>
+      <div class="right-col"><span class="badge text">Text</span><div class="dot-new"></div></div>
+    </div>
+    <div class="v1-row">
+      <img class="thumb" src="https://images.unsplash.com/photo-1611162616475-46b635cb6868?w=240&h=160&fit=crop" alt="">
+      <div class="text-col">
+        <div class="title">Incredible breakdown of how GPS actually works at the signal level</div>
+        <div class="row-meta meta"><span class="sub">r/technology</span><span class="sep"></span>10 hours ago</div>
+      </div>
+      <div class="right-col"><span class="badge youtube">YouTube</span><div class="dot-new"></div></div>
+    </div>
+    <div class="v1-row">
+      <img class="thumb" src="https://images.unsplash.com/photo-1485827404703-89b55fcc595e?w=240&h=160&fit=crop" alt="">
+      <div class="text-col">
+        <div class="title">OpenAI announces new reasoning model that can solve PhD-level science problems</div>
+        <div class="row-meta meta"><span class="sub">r/technology</span><span class="sep"></span>12 hours ago<span class="sep"></span>arstechnica.com</div>
+      </div>
+      <div class="right-col"><span class="badge link">Link</span><div class="dot-new"></div></div>
+    </div>
+    <div class="section-label section-gap">Watched</div>
+    <div class="v1-row watched">
+      <img class="thumb" src="https://images.unsplash.com/photo-1587300003388-59208cc962cb?w=240&h=160&fit=crop" alt="">
+      <div class="text-col">
+        <div class="title">My golden retriever learned to open the fridge and now he judges everything inside it</div>
+        <div class="row-meta meta"><span class="sub">r/funny</span><span class="sep"></span>1 day ago</div>
+      </div>
+      <div class="right-col"><span class="badge video">Video</span><span class="check-done">&#10003;</span></div>
+    </div>
+    <div class="v1-row watched">
+      <img class="thumb" src="https://images.unsplash.com/photo-1507400492013-162706c8c05e?w=240&h=160&fit=crop" alt="">
+      <div class="text-col">
+        <div class="title">Sunset over the Cascades from the ferry yesterday evening</div>
+        <div class="row-meta meta"><span class="sub">r/Seattle</span><span class="sep"></span>1 day ago</div>
+      </div>
+      <div class="right-col"><span class="badge image">Image</span><span class="check-done">&#10003;</span></div>
+    </div>
+    <div class="v1-row watched">
+      <div class="thumb-text green">Aa</div>
+      <div class="text-col">
+        <div class="title">Detailed breakdown of how we paid off $120k in student loans in 3 years</div>
+        <div class="row-meta meta"><span class="sub">r/personalfinance</span><span class="sep"></span>2 days ago</div>
+      </div>
+      <div class="right-col"><span class="badge text">Text</span><span class="check-done">&#10003;</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================
+     V2: Divider Lines with side indicator bar
+     ============================================ -->
+<div class="variation" id="v2">
+  <div class="tv-safe">
+    <div class="desc-box">
+      <strong>Variation 2: Divider Lines.</strong> No thumbnails in the default state. A thin blue bar on the left marks unwatched posts. Subtle divider lines between rows. Thumbnail appears on the far right as a small visual reference. Very text-forward and clean.
+    </div>
+    <div class="section-label">New</div>
+    <div class="v2-row focused">
+      <div class="indicator"></div>
+      <div class="text-col">
+        <div class="title">Incredible aurora borealis captured from my backyard last night in northern Minnesota</div>
+        <div class="row-meta meta"><span class="sub">r/space</span><span class="sep"></span>3 hours ago<span class="sep"></span><span class="badge image">Image</span></div>
+      </div>
+      <img class="thumb" src="https://images.unsplash.com/photo-1531366936337-7c912a4589a7?w=180&h=120&fit=crop" alt="">
+    </div>
+    <div class="v2-row">
+      <div class="indicator"></div>
+      <div class="text-col">
+        <div class="title">I finally perfected my grandmother's pasta recipe after 2 years of trying</div>
+        <div class="row-meta meta"><span class="sub">r/Cooking</span><span class="sep"></span>5 hours ago<span class="sep"></span><span class="badge video">Video</span></div>
+      </div>
+      <img class="thumb" src="https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=180&h=120&fit=crop" alt="">
+    </div>
+    <div class="v2-row">
+      <div class="indicator"></div>
+      <div class="text-col">
+        <div class="title">New James Webb photos just dropped - 12 images of galaxies we've never seen before</div>
+        <div class="row-meta meta"><span class="sub">r/space</span><span class="sep"></span>7 hours ago<span class="sep"></span><span class="badge gallery">Gallery</span></div>
+      </div>
+      <img class="thumb" src="https://images.unsplash.com/photo-1446776811953-b23d57bd21aa?w=180&h=120&fit=crop" alt="">
+    </div>
+    <div class="v2-row">
+      <div class="indicator"></div>
+      <div class="text-col">
+        <div class="title">After 10 years as a software engineer, here's what I wish someone told me on day one</div>
+        <div class="row-meta meta"><span class="sub">r/cscareerquestions</span><span class="sep"></span>9 hours ago<span class="sep"></span><span class="badge text">Text</span></div>
+      </div>
+      <div class="right-col"></div>
+    </div>
+    <div class="v2-row">
+      <div class="indicator"></div>
+      <div class="text-col">
+        <div class="title">Incredible breakdown of how GPS actually works at the signal level</div>
+        <div class="row-meta meta"><span class="sub">r/technology</span><span class="sep"></span>10 hours ago<span class="sep"></span><span class="badge youtube">YouTube</span></div>
+      </div>
+      <img class="thumb" src="https://images.unsplash.com/photo-1611162616475-46b635cb6868?w=180&h=120&fit=crop" alt="">
+    </div>
+    <div class="v2-row">
+      <div class="indicator"></div>
+      <div class="text-col">
+        <div class="title">OpenAI announces new reasoning model that can solve PhD-level science problems</div>
+        <div class="row-meta meta"><span class="sub">r/technology</span><span class="sep"></span>12 hours ago<span class="sep"></span>arstechnica.com<span class="sep"></span><span class="badge link">Link</span></div>
+      </div>
+      <div class="right-col"></div>
+    </div>
+    <div class="section-label section-gap">Watched</div>
+    <div class="v2-row watched">
+      <div class="indicator"></div>
+      <div class="text-col">
+        <div class="title">My golden retriever learned to open the fridge and now he judges everything inside it</div>
+        <div class="row-meta meta"><span class="sub">r/funny</span><span class="sep"></span>1 day ago<span class="sep"></span><span class="badge video">Video</span></div>
+      </div>
+      <img class="thumb" src="https://images.unsplash.com/photo-1587300003388-59208cc962cb?w=180&h=120&fit=crop" alt="">
+    </div>
+    <div class="v2-row watched">
+      <div class="indicator"></div>
+      <div class="text-col">
+        <div class="title">Sunset over the Cascades from the ferry yesterday evening</div>
+        <div class="row-meta meta"><span class="sub">r/Seattle</span><span class="sep"></span>1 day ago<span class="sep"></span><span class="badge image">Image</span></div>
+      </div>
+      <img class="thumb" src="https://images.unsplash.com/photo-1507400492013-162706c8c05e?w=180&h=120&fit=crop" alt="">
+    </div>
+    <div class="v2-row watched">
+      <div class="indicator"></div>
+      <div class="text-col">
+        <div class="title">Detailed breakdown of how we paid off $120k in student loans in 3 years</div>
+        <div class="row-meta meta"><span class="sub">r/personalfinance</span><span class="sep"></span>2 days ago<span class="sep"></span><span class="badge text">Text</span></div>
+      </div>
+      <div class="right-col"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================
+     V3: No Thumbnails - bold text only
+     ============================================ -->
+<div class="variation" id="v3">
+  <div class="tv-safe">
+    <div class="desc-box">
+      <strong>Variation 3: No Thumbnails.</strong> Completely text-driven. Titles are larger and bolder. The unwatched dot sits to the left of each row as the primary status indicator. No visual distractions - just the content you saved and why. Maximum readability from TV distance.
+    </div>
+    <div class="section-label">New</div>
+    <div class="v3-row focused">
+      <div class="status-col"><div class="dot-new"></div></div>
+      <div class="text-col">
+        <div class="title">Incredible aurora borealis captured from my backyard last night in northern Minnesota</div>
+        <div class="row-meta meta"><span class="sub">r/space</span><span class="sep"></span>3 hours ago</div>
+      </div>
+      <div class="right-col"><span class="badge image">Image</span></div>
+    </div>
+    <div class="v3-row">
+      <div class="status-col"><div class="dot-new"></div></div>
+      <div class="text-col">
+        <div class="title">I finally perfected my grandmother's pasta recipe after 2 years of trying</div>
+        <div class="row-meta meta"><span class="sub">r/Cooking</span><span class="sep"></span>5 hours ago</div>
+      </div>
+      <div class="right-col"><span class="badge video">Video</span></div>
+    </div>
+    <div class="v3-row">
+      <div class="status-col"><div class="dot-new"></div></div>
+      <div class="text-col">
+        <div class="title">New James Webb photos just dropped - 12 images of galaxies we've never seen before</div>
+        <div class="row-meta meta"><span class="sub">r/space</span><span class="sep"></span>7 hours ago</div>
+      </div>
+      <div class="right-col"><span class="badge gallery">Gallery</span></div>
+    </div>
+    <div class="v3-row">
+      <div class="status-col"><div class="dot-new"></div></div>
+      <div class="text-col">
+        <div class="title">After 10 years as a software engineer, here's what I wish someone told me on day one</div>
+        <div class="row-meta meta"><span class="sub">r/cscareerquestions</span><span class="sep"></span>9 hours ago</div>
+      </div>
+      <div class="right-col"><span class="badge text">Text</span></div>
+    </div>
+    <div class="v3-row">
+      <div class="status-col"><div class="dot-new"></div></div>
+      <div class="text-col">
+        <div class="title">Incredible breakdown of how GPS actually works at the signal level</div>
+        <div class="row-meta meta"><span class="sub">r/technology</span><span class="sep"></span>10 hours ago<span class="sep"></span>youtube.com</div>
+      </div>
+      <div class="right-col"><span class="badge youtube">YouTube</span></div>
+    </div>
+    <div class="v3-row">
+      <div class="status-col"><div class="dot-new"></div></div>
+      <div class="text-col">
+        <div class="title">OpenAI announces new reasoning model that can solve PhD-level science problems</div>
+        <div class="row-meta meta"><span class="sub">r/technology</span><span class="sep"></span>12 hours ago<span class="sep"></span>arstechnica.com</div>
+      </div>
+      <div class="right-col"><span class="badge link">Link</span></div>
+    </div>
+    <div class="section-label section-gap">Watched</div>
+    <div class="v3-row watched">
+      <div class="status-col"><span class="check-done">&#10003;</span></div>
+      <div class="text-col">
+        <div class="title">My golden retriever learned to open the fridge and now he judges everything inside it</div>
+        <div class="row-meta meta"><span class="sub">r/funny</span><span class="sep"></span>1 day ago</div>
+      </div>
+      <div class="right-col"><span class="badge video">Video</span></div>
+    </div>
+    <div class="v3-row watched">
+      <div class="status-col"><span class="check-done">&#10003;</span></div>
+      <div class="text-col">
+        <div class="title">Sunset over the Cascades from the ferry yesterday evening</div>
+        <div class="row-meta meta"><span class="sub">r/Seattle</span><span class="sep"></span>1 day ago</div>
+      </div>
+      <div class="right-col"><span class="badge image">Image</span></div>
+    </div>
+    <div class="v3-row watched">
+      <div class="status-col"><span class="check-done">&#10003;</span></div>
+      <div class="text-col">
+        <div class="title">Detailed breakdown of how we paid off $120k in student loans in 3 years</div>
+        <div class="row-meta meta"><span class="sub">r/personalfinance</span><span class="sep"></span>2 days ago</div>
+      </div>
+      <div class="right-col"><span class="badge text">Text</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================
+     V4: Soft Cards with type icons
+     ============================================ -->
+<div class="variation" id="v4">
+  <div class="tv-safe">
+    <div class="desc-box">
+      <strong>Variation 4: Soft Cards.</strong> Each row is a subtle card with a faint background and border. A colored type icon on the left replaces the thumbnail for quick visual scanning of content type. Thumbnail appears on the right. Feels more structured and app-like.
+    </div>
+    <div class="section-label">New</div>
+    <div class="v4-row focused">
+      <div class="type-icon image">&#9634;</div>
+      <div class="text-col">
+        <div class="title">Incredible aurora borealis captured from my backyard last night in northern Minnesota</div>
+        <div class="row-meta meta"><span class="sub">r/space</span><span class="sep"></span>3 hours ago</div>
+      </div>
+      <img class="thumb" src="https://images.unsplash.com/photo-1531366936337-7c912a4589a7?w=200&h=140&fit=crop" alt="">
+      <div class="right-col"><div class="dot-new"></div></div>
+    </div>
+    <div class="v4-row">
+      <div class="type-icon video">&#9654;</div>
+      <div class="text-col">
+        <div class="title">I finally perfected my grandmother's pasta recipe after 2 years of trying</div>
+        <div class="row-meta meta"><span class="sub">r/Cooking</span><span class="sep"></span>5 hours ago</div>
+      </div>
+      <img class="thumb" src="https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=200&h=140&fit=crop" alt="">
+      <div class="right-col"><div class="dot-new"></div></div>
+    </div>
+    <div class="v4-row">
+      <div class="type-icon gallery">&#9871;</div>
+      <div class="text-col">
+        <div class="title">New James Webb photos just dropped - 12 images of galaxies we've never seen before</div>
+        <div class="row-meta meta"><span class="sub">r/space</span><span class="sep"></span>7 hours ago</div>
+      </div>
+      <img class="thumb" src="https://images.unsplash.com/photo-1446776811953-b23d57bd21aa?w=200&h=140&fit=crop" alt="">
+      <div class="right-col"><div class="dot-new"></div></div>
+    </div>
+    <div class="v4-row">
+      <div class="type-icon text">Aa</div>
+      <div class="text-col">
+        <div class="title">After 10 years as a software engineer, here's what I wish someone told me on day one</div>
+        <div class="row-meta meta"><span class="sub">r/cscareerquestions</span><span class="sep"></span>9 hours ago</div>
+      </div>
+      <div class="right-col"><div class="dot-new"></div></div>
+    </div>
+    <div class="v4-row">
+      <div class="type-icon youtube">&#9654;</div>
+      <div class="text-col">
+        <div class="title">Incredible breakdown of how GPS actually works at the signal level</div>
+        <div class="row-meta meta"><span class="sub">r/technology</span><span class="sep"></span>10 hours ago<span class="sep"></span>youtube.com</div>
+      </div>
+      <img class="thumb" src="https://images.unsplash.com/photo-1611162616475-46b635cb6868?w=200&h=140&fit=crop" alt="">
+      <div class="right-col"><div class="dot-new"></div></div>
+    </div>
+    <div class="v4-row">
+      <div class="type-icon link">&#8599;</div>
+      <div class="text-col">
+        <div class="title">OpenAI announces new reasoning model that can solve PhD-level science problems</div>
+        <div class="row-meta meta"><span class="sub">r/technology</span><span class="sep"></span>12 hours ago<span class="sep"></span>arstechnica.com</div>
+      </div>
+      <div class="right-col"><div class="dot-new"></div></div>
+    </div>
+    <div class="section-label section-gap">Watched</div>
+    <div class="v4-row watched">
+      <div class="type-icon video">&#9654;</div>
+      <div class="text-col">
+        <div class="title">My golden retriever learned to open the fridge and now he judges everything inside it</div>
+        <div class="row-meta meta"><span class="sub">r/funny</span><span class="sep"></span>1 day ago</div>
+      </div>
+      <img class="thumb" src="https://images.unsplash.com/photo-1587300003388-59208cc962cb?w=200&h=140&fit=crop" alt="">
+      <div class="right-col"><span class="check-done">&#10003;</span></div>
+    </div>
+    <div class="v4-row watched">
+      <div class="type-icon image">&#9634;</div>
+      <div class="text-col">
+        <div class="title">Sunset over the Cascades from the ferry yesterday evening</div>
+        <div class="row-meta meta"><span class="sub">r/Seattle</span><span class="sep"></span>1 day ago</div>
+      </div>
+      <img class="thumb" src="https://images.unsplash.com/photo-1507400492013-162706c8c05e?w=200&h=140&fit=crop" alt="">
+      <div class="right-col"><span class="check-done">&#10003;</span></div>
+    </div>
+    <div class="v4-row watched">
+      <div class="type-icon text">Aa</div>
+      <div class="text-col">
+        <div class="title">Detailed breakdown of how we paid off $120k in student loans in 3 years</div>
+        <div class="row-meta meta"><span class="sub">r/personalfinance</span><span class="sep"></span>2 days ago</div>
+      </div>
+      <div class="right-col"><span class="check-done">&#10003;</span></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  function show(id) {
+    document.querySelectorAll('.variation').forEach(v => v.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    const map = { v1: 0, v2: 1, v3: 2, v4: 3 };
+    document.querySelectorAll('.tab-btn')[map[id]].classList.add('active');
+    window.scrollTo(0, 0);
+  }
+</script>
+
+</body>
+</html>

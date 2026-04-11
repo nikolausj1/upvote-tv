@@ -1,0 +1,553 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXContainerItemProxy section */
+		5104C5682F8998D9004FEFB0 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 5104C54D2F8998D7004FEFB0 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 5104C5542F8998D7004FEFB0;
+			remoteInfo = "Upvote TV";
+		};
+		5104C5722F8998D9004FEFB0 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 5104C54D2F8998D7004FEFB0 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 5104C5542F8998D7004FEFB0;
+			remoteInfo = "Upvote TV";
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		5104C5552F8998D7004FEFB0 /* Upvote TV.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Upvote TV.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		5104C5672F8998D9004FEFB0 /* Upvote TVTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Upvote TVTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		5104C5712F8998D9004FEFB0 /* Upvote TVUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Upvote TVUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		5104C5572F8998D7004FEFB0 /* Upvote TV */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "Upvote TV";
+			sourceTree = "<group>";
+		};
+		5104C56A2F8998D9004FEFB0 /* Upvote TVTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "Upvote TVTests";
+			sourceTree = "<group>";
+		};
+		5104C5742F8998D9004FEFB0 /* Upvote TVUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "Upvote TVUITests";
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		5104C5522F8998D7004FEFB0 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5104C5642F8998D9004FEFB0 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5104C56E2F8998D9004FEFB0 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		5104C54C2F8998D7004FEFB0 = {
+			isa = PBXGroup;
+			children = (
+				5104C5572F8998D7004FEFB0 /* Upvote TV */,
+				5104C56A2F8998D9004FEFB0 /* Upvote TVTests */,
+				5104C5742F8998D9004FEFB0 /* Upvote TVUITests */,
+				5104C5562F8998D7004FEFB0 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		5104C5562F8998D7004FEFB0 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				5104C5552F8998D7004FEFB0 /* Upvote TV.app */,
+				5104C5672F8998D9004FEFB0 /* Upvote TVTests.xctest */,
+				5104C5712F8998D9004FEFB0 /* Upvote TVUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		5104C5542F8998D7004FEFB0 /* Upvote TV */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 5104C57B2F8998D9004FEFB0 /* Build configuration list for PBXNativeTarget "Upvote TV" */;
+			buildPhases = (
+				5104C5512F8998D7004FEFB0 /* Sources */,
+				5104C5522F8998D7004FEFB0 /* Frameworks */,
+				5104C5532F8998D7004FEFB0 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				5104C5572F8998D7004FEFB0 /* Upvote TV */,
+			);
+			name = "Upvote TV";
+			packageProductDependencies = (
+			);
+			productName = "Upvote TV";
+			productReference = 5104C5552F8998D7004FEFB0 /* Upvote TV.app */;
+			productType = "com.apple.product-type.application";
+		};
+		5104C5662F8998D9004FEFB0 /* Upvote TVTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 5104C57E2F8998D9004FEFB0 /* Build configuration list for PBXNativeTarget "Upvote TVTests" */;
+			buildPhases = (
+				5104C5632F8998D9004FEFB0 /* Sources */,
+				5104C5642F8998D9004FEFB0 /* Frameworks */,
+				5104C5652F8998D9004FEFB0 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				5104C5692F8998D9004FEFB0 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				5104C56A2F8998D9004FEFB0 /* Upvote TVTests */,
+			);
+			name = "Upvote TVTests";
+			packageProductDependencies = (
+			);
+			productName = "Upvote TVTests";
+			productReference = 5104C5672F8998D9004FEFB0 /* Upvote TVTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		5104C5702F8998D9004FEFB0 /* Upvote TVUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 5104C5812F8998D9004FEFB0 /* Build configuration list for PBXNativeTarget "Upvote TVUITests" */;
+			buildPhases = (
+				5104C56D2F8998D9004FEFB0 /* Sources */,
+				5104C56E2F8998D9004FEFB0 /* Frameworks */,
+				5104C56F2F8998D9004FEFB0 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				5104C5732F8998D9004FEFB0 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				5104C5742F8998D9004FEFB0 /* Upvote TVUITests */,
+			);
+			name = "Upvote TVUITests";
+			packageProductDependencies = (
+			);
+			productName = "Upvote TVUITests";
+			productReference = 5104C5712F8998D9004FEFB0 /* Upvote TVUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		5104C54D2F8998D7004FEFB0 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1620;
+				LastUpgradeCheck = 1620;
+				TargetAttributes = {
+					5104C5542F8998D7004FEFB0 = {
+						CreatedOnToolsVersion = 16.2;
+					};
+					5104C5662F8998D9004FEFB0 = {
+						CreatedOnToolsVersion = 16.2;
+						TestTargetID = 5104C5542F8998D7004FEFB0;
+					};
+					5104C5702F8998D9004FEFB0 = {
+						CreatedOnToolsVersion = 16.2;
+						TestTargetID = 5104C5542F8998D7004FEFB0;
+					};
+				};
+			};
+			buildConfigurationList = 5104C5502F8998D7004FEFB0 /* Build configuration list for PBXProject "Upvote TV" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 5104C54C2F8998D7004FEFB0;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 5104C5562F8998D7004FEFB0 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				5104C5542F8998D7004FEFB0 /* Upvote TV */,
+				5104C5662F8998D9004FEFB0 /* Upvote TVTests */,
+				5104C5702F8998D9004FEFB0 /* Upvote TVUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		5104C5532F8998D7004FEFB0 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5104C5652F8998D9004FEFB0 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5104C56F2F8998D9004FEFB0 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		5104C5512F8998D7004FEFB0 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5104C5632F8998D9004FEFB0 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5104C56D2F8998D9004FEFB0 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		5104C5692F8998D9004FEFB0 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 5104C5542F8998D7004FEFB0 /* Upvote TV */;
+			targetProxy = 5104C5682F8998D9004FEFB0 /* PBXContainerItemProxy */;
+		};
+		5104C5732F8998D9004FEFB0 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 5104C5542F8998D7004FEFB0 /* Upvote TV */;
+			targetProxy = 5104C5722F8998D9004FEFB0 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		5104C5792F8998D9004FEFB0 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = appletvos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				TVOS_DEPLOYMENT_TARGET = 18.2;
+			};
+			name = Debug;
+		};
+		5104C57A2F8998D9004FEFB0 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = appletvos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				TVOS_DEPLOYMENT_TARGET = 18.2;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		5104C57C2F8998D9004FEFB0 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = "App Icon & Top Shelf Image";
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"Upvote TV/Preview Content\"";
+				DEVELOPMENT_TEAM = 6A4J2GTB6F;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UIUserInterfaceStyle = Automatic;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.justinnikolaus.Upvote-TV";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 3;
+			};
+			name = Debug;
+		};
+		5104C57D2F8998D9004FEFB0 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = "App Icon & Top Shelf Image";
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"Upvote TV/Preview Content\"";
+				DEVELOPMENT_TEAM = 6A4J2GTB6F;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UIUserInterfaceStyle = Automatic;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.justinnikolaus.Upvote-TV";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 3;
+			};
+			name = Release;
+		};
+		5104C57F2F8998D9004FEFB0 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.justinnikolaus.Upvote-TVTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 3;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Upvote TV.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Upvote TV";
+				TVOS_DEPLOYMENT_TARGET = 18.2;
+			};
+			name = Debug;
+		};
+		5104C5802F8998D9004FEFB0 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.justinnikolaus.Upvote-TVTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 3;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Upvote TV.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Upvote TV";
+				TVOS_DEPLOYMENT_TARGET = 18.2;
+			};
+			name = Release;
+		};
+		5104C5822F8998D9004FEFB0 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.justinnikolaus.Upvote-TVUITests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 3;
+				TEST_TARGET_NAME = "Upvote TV";
+			};
+			name = Debug;
+		};
+		5104C5832F8998D9004FEFB0 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.justinnikolaus.Upvote-TVUITests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 3;
+				TEST_TARGET_NAME = "Upvote TV";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		5104C5502F8998D7004FEFB0 /* Build configuration list for PBXProject "Upvote TV" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5104C5792F8998D9004FEFB0 /* Debug */,
+				5104C57A2F8998D9004FEFB0 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		5104C57B2F8998D9004FEFB0 /* Build configuration list for PBXNativeTarget "Upvote TV" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5104C57C2F8998D9004FEFB0 /* Debug */,
+				5104C57D2F8998D9004FEFB0 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		5104C57E2F8998D9004FEFB0 /* Build configuration list for PBXNativeTarget "Upvote TVTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5104C57F2F8998D9004FEFB0 /* Debug */,
+				5104C5802F8998D9004FEFB0 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		5104C5812F8998D9004FEFB0 /* Build configuration list for PBXNativeTarget "Upvote TVUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5104C5822F8998D9004FEFB0 /* Debug */,
+				5104C5832F8998D9004FEFB0 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 5104C54D2F8998D7004FEFB0 /* Project object */;
+}

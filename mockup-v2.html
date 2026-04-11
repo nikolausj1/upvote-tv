@@ -1,0 +1,956 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Upvote TV - Layout Explorations</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: #0a0a0c;
+    color: #f0f0f2;
+    overflow-x: hidden;
+  }
+
+  /* Layout switcher */
+  .layout-switcher {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 200;
+    background: rgba(10,10,12,0.95);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    padding: 16px 48px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .layout-switcher .label {
+    font-size: 13px;
+    color: #666;
+    font-weight: 500;
+    margin-right: 8px;
+  }
+  .layout-btn {
+    padding: 8px 20px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #777;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 1px solid rgba(255,255,255,0.08);
+    background: none;
+  }
+  .layout-btn.active {
+    background: rgba(255,255,255,0.1);
+    color: #eee;
+    border-color: rgba(255,255,255,0.15);
+  }
+  .layout-btn:hover:not(.active) {
+    background: rgba(255,255,255,0.04);
+    color: #aaa;
+  }
+
+  /* Shared */
+  .layout-view { display: none; padding-top: 72px; }
+  .layout-view.active { display: block; }
+  .tv-safe { padding: 32px 60px 48px; max-width: 1920px; margin: 0 auto; }
+
+  .section-label {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: #555;
+    margin-bottom: 16px;
+  }
+  .section-gap { margin-top: 32px; }
+
+  .unwatched-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #4ca1ff;
+    box-shadow: 0 0 8px rgba(76,161,255,0.4);
+    flex-shrink: 0;
+  }
+  .watched-check {
+    font-size: 14px;
+    color: #444;
+    flex-shrink: 0;
+  }
+  .type-badge {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 4px;
+    background: rgba(255,255,255,0.07);
+    color: #777;
+    flex-shrink: 0;
+  }
+  .type-badge.video { color: #e06060; background: rgba(224,96,96,0.1); }
+  .type-badge.image { color: #60b0e0; background: rgba(96,176,224,0.1); }
+  .type-badge.gallery { color: #b080e0; background: rgba(176,128,224,0.1); }
+  .type-badge.text { color: #80c080; background: rgba(128,192,128,0.1); }
+  .type-badge.youtube { color: #e06060; background: rgba(224,96,96,0.1); }
+  .type-badge.link { color: #c0a060; background: rgba(192,160,96,0.1); }
+
+  .detail-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: #0a0a0c;
+    z-index: 150;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 48px 80px;
+  }
+  .detail-overlay.visible { display: flex; }
+  .detail-back {
+    position: absolute;
+    top: 40px;
+    left: 60px;
+    font-size: 14px;
+    color: #555;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .detail-back:hover { color: #aaa; }
+
+  /* ================================================
+     LAYOUT A: Full-width list with generous rows
+     ================================================ */
+  .list-row {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 18px 24px;
+    border-radius: 16px;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.18s, box-shadow 0.2s;
+    margin-bottom: 4px;
+  }
+  .list-row:hover, .list-row.focused {
+    background: rgba(255,255,255,0.06);
+    transform: scale(1.01);
+    box-shadow: 0 0 0 2px rgba(255,255,255,0.1), 0 8px 24px rgba(0,0,0,0.3);
+  }
+  .list-row .thumb {
+    width: 110px;
+    height: 74px;
+    border-radius: 10px;
+    object-fit: cover;
+    flex-shrink: 0;
+    background: #1a1a1e;
+  }
+  .list-row.watched .thumb { opacity: 0.6; }
+  .list-row .text-content {
+    flex: 1;
+    min-width: 0;
+  }
+  .list-row .row-title {
+    font-size: 18px;
+    font-weight: 500;
+    line-height: 1.4;
+    color: #eee;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .list-row.watched .row-title { color: #888; }
+  .list-row .row-meta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 6px;
+    font-size: 13px;
+    color: #666;
+  }
+  .list-row .row-meta .sub { color: #4ca1ff; font-weight: 500; }
+  .list-row .row-meta .sep {
+    width: 3px; height: 3px; border-radius: 50%; background: #444;
+  }
+  .list-row .row-right {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-shrink: 0;
+  }
+
+  /* ================================================
+     LAYOUT B: Stacked rows with conditional thumbs
+     ================================================ */
+  .stack-row {
+    display: flex;
+    align-items: stretch;
+    border-radius: 16px;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.18s, box-shadow 0.2s;
+    margin-bottom: 6px;
+    overflow: hidden;
+    min-height: 88px;
+  }
+  .stack-row:hover, .stack-row.focused {
+    background: rgba(255,255,255,0.06);
+    transform: scale(1.01);
+    box-shadow: 0 0 0 2px rgba(255,255,255,0.1), 0 8px 24px rgba(0,0,0,0.3);
+  }
+  .stack-row .visual-strip {
+    width: 160px;
+    flex-shrink: 0;
+    background: #141418;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+  .stack-row .visual-strip img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .stack-row.watched .visual-strip img { opacity: 0.6; }
+  .stack-row .visual-strip.text-visual {
+    background: linear-gradient(135deg, #141420, #1a1a2e);
+    font-size: 28px;
+    color: rgba(255,255,255,0.15);
+    font-weight: 700;
+    letter-spacing: 1px;
+  }
+  .stack-row .stack-content {
+    flex: 1;
+    padding: 16px 24px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-width: 0;
+  }
+  .stack-row .stack-title {
+    font-size: 17px;
+    font-weight: 500;
+    line-height: 1.4;
+    color: #eee;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .stack-row.watched .stack-title { color: #888; }
+  .stack-row .stack-excerpt {
+    font-size: 14px;
+    color: #666;
+    margin-top: 4px;
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .stack-row .stack-meta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 8px;
+    font-size: 13px;
+    color: #555;
+  }
+  .stack-row .stack-meta .sub { color: #4ca1ff; font-weight: 500; }
+  .stack-row .stack-meta .sep {
+    width: 3px; height: 3px; border-radius: 50%; background: #444;
+  }
+  .stack-row .stack-right {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding-right: 24px;
+    flex-shrink: 0;
+  }
+
+  /* ================================================
+     LAYOUT C: Top-shelf spotlight
+     ================================================ */
+  #layoutC .spotlight-area {
+    width: 100%;
+    border-radius: 20px;
+    overflow: hidden;
+    position: relative;
+    margin-bottom: 32px;
+    height: 340px;
+    display: flex;
+    background: #111116;
+    transition: all 0.3s;
+  }
+  #layoutC .spotlight-bg {
+    position: absolute;
+    inset: 0;
+    background-size: cover;
+    background-position: center;
+    opacity: 0.25;
+    filter: blur(40px) saturate(1.5);
+  }
+  #layoutC .spotlight-content {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    gap: 40px;
+    padding: 40px 48px;
+    width: 100%;
+  }
+  #layoutC .spotlight-image {
+    width: 360px;
+    height: 240px;
+    border-radius: 14px;
+    object-fit: cover;
+    flex-shrink: 0;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+    background: #1a1a1e;
+  }
+  #layoutC .spotlight-info {
+    flex: 1;
+    min-width: 0;
+  }
+  #layoutC .spotlight-title {
+    font-size: 28px;
+    font-weight: 600;
+    line-height: 1.3;
+    margin-bottom: 12px;
+  }
+  #layoutC .spotlight-meta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 14px;
+    color: #888;
+    margin-bottom: 16px;
+  }
+  #layoutC .spotlight-meta .sub { color: #4ca1ff; font-weight: 500; }
+  #layoutC .spotlight-meta .sep {
+    width: 3px; height: 3px; border-radius: 50%; background: #555;
+  }
+  #layoutC .spotlight-excerpt {
+    font-size: 15px;
+    color: #999;
+    line-height: 1.6;
+    max-height: 72px;
+    overflow: hidden;
+  }
+
+  #layoutC .compact-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 12px 20px;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: background 0.15s;
+    margin-bottom: 2px;
+  }
+  #layoutC .compact-row:hover, #layoutC .compact-row.focused {
+    background: rgba(255,255,255,0.06);
+  }
+  #layoutC .compact-row .c-thumb {
+    width: 56px;
+    height: 42px;
+    border-radius: 6px;
+    object-fit: cover;
+    flex-shrink: 0;
+    background: #1a1a1e;
+  }
+  #layoutC .compact-row.watched .c-thumb { opacity: 0.6; }
+  #layoutC .compact-row .c-title {
+    flex: 1;
+    font-size: 15px;
+    font-weight: 400;
+    color: #ccc;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  #layoutC .compact-row.watched .c-title { color: #666; }
+  #layoutC .compact-row .c-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+  }
+  #layoutC .compact-row .c-meta {
+    font-size: 12px;
+    color: #555;
+  }
+
+  /* Full-screen detail views shared across layouts */
+  .fs-video {
+    width: 85%;
+    max-width: 1200px;
+    aspect-ratio: 16/9;
+    background: #111;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .fs-video img {
+    width: 100%; height: 100%; object-fit: cover; opacity: 0.6; border-radius: 12px;
+  }
+  .fs-play {
+    position: absolute;
+    width: 72px; height: 72px; border-radius: 50%;
+    background: rgba(255,255,255,0.15);
+    backdrop-filter: blur(20px);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 28px;
+  }
+  .fs-progress {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    height: 4px; background: rgba(255,255,255,0.1);
+    border-radius: 0 0 12px 12px; overflow: hidden;
+  }
+  .fs-progress-fill { height: 100%; width: 42%; background: #4ca1ff; }
+
+  .fs-image {
+    max-width: 85%; max-height: 75vh;
+    border-radius: 12px; object-fit: contain;
+  }
+
+  .fs-text { max-width: 720px; width: 100%; }
+  .fs-text h1 { font-size: 30px; font-weight: 600; line-height: 1.3; margin-bottom: 24px; }
+  .fs-text .body { font-size: 18px; line-height: 1.8; color: #bbb; }
+
+  .replay-btn {
+    margin-top: 24px;
+    padding: 12px 32px;
+    border-radius: 10px;
+    background: rgba(255,255,255,0.1);
+    color: #ccc;
+    font-size: 15px;
+    font-weight: 500;
+    border: none;
+    cursor: pointer;
+  }
+  .replay-btn:hover { background: rgba(255,255,255,0.15); color: #fff; }
+
+  /* Description panel */
+  .layout-desc {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 12px;
+    padding: 20px 24px;
+    margin-bottom: 28px;
+    font-size: 14px;
+    line-height: 1.6;
+    color: #888;
+  }
+  .layout-desc strong { color: #bbb; }
+
+  @media (max-width: 1200px) {
+    .tv-safe { padding: 24px 32px 40px; }
+    .list-row .row-title { font-size: 16px; }
+    .list-row .thumb { width: 90px; height: 60px; }
+    #layoutC .spotlight-area { height: 260px; }
+    #layoutC .spotlight-image { width: 260px; height: 180px; }
+    #layoutC .spotlight-title { font-size: 22px; }
+    .stack-row .visual-strip { width: 120px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="layout-switcher">
+  <span class="label">Layout:</span>
+  <button class="layout-btn active" onclick="switchLayout('A')">A: Full-Width List</button>
+  <button class="layout-btn" onclick="switchLayout('B')">B: Conditional Thumbnails</button>
+  <button class="layout-btn" onclick="switchLayout('C')">C: Top-Shelf Spotlight</button>
+  <button class="layout-btn" onclick="switchLayout('detail')">Detail Views</button>
+</div>
+
+<!-- ============================================
+     LAYOUT A: Full-width list with generous rows
+     ============================================ -->
+<div class="layout-view active" id="layoutA">
+  <div class="tv-safe">
+    <div class="layout-desc">
+      <strong>Layout A: Full-Width List.</strong> Each row takes the full screen width, giving titles plenty of room to breathe. Thumbnail sits to the left as a visual anchor, but the title is the primary element. Simple, scannable, text-forward.
+    </div>
+
+    <div class="section-label">New</div>
+
+    <div class="list-row focused">
+      <img class="thumb" src="https://images.unsplash.com/photo-1531366936337-7c912a4589a7?w=240&h=160&fit=crop" alt="">
+      <div class="text-content">
+        <div class="row-title">Incredible aurora borealis captured from my backyard last night in northern Minnesota</div>
+        <div class="row-meta">
+          <span class="sub">r/space</span><span class="sep"></span><span>3 hours ago</span>
+        </div>
+      </div>
+      <div class="row-right">
+        <span class="type-badge image">Image</span>
+        <div class="unwatched-dot"></div>
+      </div>
+    </div>
+
+    <div class="list-row">
+      <img class="thumb" src="https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=240&h=160&fit=crop" alt="">
+      <div class="text-content">
+        <div class="row-title">I finally perfected my grandmother's pasta recipe after 2 years of trying</div>
+        <div class="row-meta">
+          <span class="sub">r/Cooking</span><span class="sep"></span><span>5 hours ago</span>
+        </div>
+      </div>
+      <div class="row-right">
+        <span class="type-badge video">Video</span>
+        <div class="unwatched-dot"></div>
+      </div>
+    </div>
+
+    <div class="list-row">
+      <img class="thumb" src="https://images.unsplash.com/photo-1446776811953-b23d57bd21aa?w=240&h=160&fit=crop" alt="">
+      <div class="text-content">
+        <div class="row-title">New James Webb photos just dropped - 12 images of galaxies we've never seen before</div>
+        <div class="row-meta">
+          <span class="sub">r/space</span><span class="sep"></span><span>7 hours ago</span>
+        </div>
+      </div>
+      <div class="row-right">
+        <span class="type-badge gallery">Gallery</span>
+        <div class="unwatched-dot"></div>
+      </div>
+    </div>
+
+    <div class="list-row">
+      <div class="thumb" style="background: linear-gradient(135deg, #141420, #1a1a2e); display:flex; align-items:center; justify-content:center;">
+        <span style="font-size:22px; color:rgba(128,192,128,0.4); font-weight:700;">Aa</span>
+      </div>
+      <div class="text-content">
+        <div class="row-title">After 10 years as a software engineer, here's what I wish someone told me on day one</div>
+        <div class="row-meta">
+          <span class="sub">r/cscareerquestions</span><span class="sep"></span><span>9 hours ago</span>
+        </div>
+      </div>
+      <div class="row-right">
+        <span class="type-badge text">Text</span>
+        <div class="unwatched-dot"></div>
+      </div>
+    </div>
+
+    <div class="list-row">
+      <img class="thumb" src="https://images.unsplash.com/photo-1611162616475-46b635cb6868?w=240&h=160&fit=crop" alt="">
+      <div class="text-content">
+        <div class="row-title">Incredible breakdown of how GPS actually works at the signal level</div>
+        <div class="row-meta">
+          <span class="sub">r/technology</span><span class="sep"></span><span>10 hours ago</span>
+        </div>
+      </div>
+      <div class="row-right">
+        <span class="type-badge youtube">YouTube</span>
+        <div class="unwatched-dot"></div>
+      </div>
+    </div>
+
+    <div class="list-row">
+      <img class="thumb" src="https://images.unsplash.com/photo-1485827404703-89b55fcc595e?w=240&h=160&fit=crop" alt="">
+      <div class="text-content">
+        <div class="row-title">OpenAI announces new reasoning model that can solve PhD-level science problems</div>
+        <div class="row-meta">
+          <span class="sub">r/technology</span><span class="sep"></span><span>12 hours ago</span>
+        </div>
+      </div>
+      <div class="row-right">
+        <span class="type-badge link">Link</span>
+        <div class="unwatched-dot"></div>
+      </div>
+    </div>
+
+    <div class="section-label section-gap">Watched</div>
+
+    <div class="list-row watched">
+      <img class="thumb" src="https://images.unsplash.com/photo-1587300003388-59208cc962cb?w=240&h=160&fit=crop" alt="">
+      <div class="text-content">
+        <div class="row-title">My golden retriever learned to open the fridge and now he judges everything inside it</div>
+        <div class="row-meta">
+          <span class="sub">r/funny</span><span class="sep"></span><span>1 day ago</span>
+        </div>
+      </div>
+      <div class="row-right">
+        <span class="type-badge video">Video</span>
+        <span class="watched-check">&#10003;</span>
+      </div>
+    </div>
+
+    <div class="list-row watched">
+      <img class="thumb" src="https://images.unsplash.com/photo-1507400492013-162706c8c05e?w=240&h=160&fit=crop" alt="">
+      <div class="text-content">
+        <div class="row-title">Sunset over the Cascades from the ferry yesterday evening</div>
+        <div class="row-meta">
+          <span class="sub">r/Seattle</span><span class="sep"></span><span>1 day ago</span>
+        </div>
+      </div>
+      <div class="row-right">
+        <span class="type-badge image">Image</span>
+        <span class="watched-check">&#10003;</span>
+      </div>
+    </div>
+
+    <div class="list-row watched">
+      <div class="thumb" style="background: linear-gradient(135deg, #141420, #1a2a1a); display:flex; align-items:center; justify-content:center;">
+        <span style="font-size:22px; color:rgba(128,192,128,0.4); font-weight:700;">Aa</span>
+      </div>
+      <div class="text-content">
+        <div class="row-title">Detailed breakdown of how we paid off $120k in student loans in 3 years</div>
+        <div class="row-meta">
+          <span class="sub">r/personalfinance</span><span class="sep"></span><span>2 days ago</span>
+        </div>
+      </div>
+      <div class="row-right">
+        <span class="type-badge text">Text</span>
+        <span class="watched-check">&#10003;</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================
+     LAYOUT B: Stacked rows with conditional thumbs
+     ============================================ -->
+<div class="layout-view" id="layoutB">
+  <div class="tv-safe">
+    <div class="layout-desc">
+      <strong>Layout B: Conditional Thumbnails.</strong> Visual posts (image, video, gallery) get a thumbnail strip on the left. Text and link posts skip the thumbnail entirely and let the title and excerpt fill the full width. Each row adapts to its content type.
+    </div>
+
+    <div class="section-label">New</div>
+
+    <div class="stack-row focused">
+      <div class="visual-strip">
+        <img src="https://images.unsplash.com/photo-1531366936337-7c912a4589a7?w=320&h=200&fit=crop" alt="">
+      </div>
+      <div class="stack-content">
+        <div class="stack-title">Incredible aurora borealis captured from my backyard last night in northern Minnesota</div>
+        <div class="stack-meta">
+          <span class="sub">r/space</span><span class="sep"></span><span>3 hours ago</span>
+        </div>
+      </div>
+      <div class="stack-right">
+        <span class="type-badge image">Image</span>
+        <div class="unwatched-dot"></div>
+      </div>
+    </div>
+
+    <div class="stack-row">
+      <div class="visual-strip">
+        <img src="https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=320&h=200&fit=crop" alt="">
+      </div>
+      <div class="stack-content">
+        <div class="stack-title">I finally perfected my grandmother's pasta recipe after 2 years of trying</div>
+        <div class="stack-meta">
+          <span class="sub">r/Cooking</span><span class="sep"></span><span>5 hours ago</span>
+        </div>
+      </div>
+      <div class="stack-right">
+        <span class="type-badge video">Video</span>
+        <div class="unwatched-dot"></div>
+      </div>
+    </div>
+
+    <div class="stack-row">
+      <div class="visual-strip">
+        <img src="https://images.unsplash.com/photo-1446776811953-b23d57bd21aa?w=320&h=200&fit=crop" alt="">
+      </div>
+      <div class="stack-content">
+        <div class="stack-title">New James Webb photos just dropped - 12 images of galaxies we've never seen before</div>
+        <div class="stack-meta">
+          <span class="sub">r/space</span><span class="sep"></span><span>7 hours ago</span>
+        </div>
+      </div>
+      <div class="stack-right">
+        <span class="type-badge gallery">Gallery</span>
+        <div class="unwatched-dot"></div>
+      </div>
+    </div>
+
+    <div class="stack-row">
+      <div class="visual-strip text-visual">Aa</div>
+      <div class="stack-content">
+        <div class="stack-title">After 10 years as a software engineer, here's what I wish someone told me on day one</div>
+        <div class="stack-excerpt">I've been in the industry for a decade now, and looking back there are things I wish I'd internalized much earlier...</div>
+        <div class="stack-meta">
+          <span class="sub">r/cscareerquestions</span><span class="sep"></span><span>9 hours ago</span>
+        </div>
+      </div>
+      <div class="stack-right">
+        <span class="type-badge text">Text</span>
+        <div class="unwatched-dot"></div>
+      </div>
+    </div>
+
+    <div class="stack-row">
+      <div class="visual-strip">
+        <img src="https://images.unsplash.com/photo-1611162616475-46b635cb6868?w=320&h=200&fit=crop" alt="">
+      </div>
+      <div class="stack-content">
+        <div class="stack-title">Incredible breakdown of how GPS actually works at the signal level</div>
+        <div class="stack-meta">
+          <span class="sub">r/technology</span><span class="sep"></span><span>10 hours ago</span><span class="sep"></span><span>youtube.com</span>
+        </div>
+      </div>
+      <div class="stack-right">
+        <span class="type-badge youtube">YouTube</span>
+        <div class="unwatched-dot"></div>
+      </div>
+    </div>
+
+    <div class="stack-row">
+      <div class="visual-strip text-visual" style="background: linear-gradient(135deg, #1a1a18, #1e1a14);">
+        <span style="font-size: 18px; color: rgba(192,160,96,0.3);">&#8599;</span>
+      </div>
+      <div class="stack-content">
+        <div class="stack-title">OpenAI announces new reasoning model that can solve PhD-level science problems</div>
+        <div class="stack-excerpt">The new model demonstrates a significant leap in scientific reasoning capability, scoring above the 90th percentile...</div>
+        <div class="stack-meta">
+          <span class="sub">r/technology</span><span class="sep"></span><span>12 hours ago</span><span class="sep"></span><span>arstechnica.com</span>
+        </div>
+      </div>
+      <div class="stack-right">
+        <span class="type-badge link">Link</span>
+        <div class="unwatched-dot"></div>
+      </div>
+    </div>
+
+    <div class="section-label section-gap">Watched</div>
+
+    <div class="stack-row watched">
+      <div class="visual-strip">
+        <img src="https://images.unsplash.com/photo-1587300003388-59208cc962cb?w=320&h=200&fit=crop" alt="">
+      </div>
+      <div class="stack-content">
+        <div class="stack-title">My golden retriever learned to open the fridge and now he judges everything inside it</div>
+        <div class="stack-meta">
+          <span class="sub">r/funny</span><span class="sep"></span><span>1 day ago</span>
+        </div>
+      </div>
+      <div class="stack-right">
+        <span class="type-badge video">Video</span>
+        <span class="watched-check">&#10003;</span>
+      </div>
+    </div>
+
+    <div class="stack-row watched">
+      <div class="visual-strip text-visual" style="background: linear-gradient(135deg, #141420, #1a2a1a);">Aa</div>
+      <div class="stack-content">
+        <div class="stack-title">Detailed breakdown of how we paid off $120k in student loans in 3 years</div>
+        <div class="stack-excerpt">My wife and I graduated with a combined $120k in student loan debt...</div>
+        <div class="stack-meta">
+          <span class="sub">r/personalfinance</span><span class="sep"></span><span>2 days ago</span>
+        </div>
+      </div>
+      <div class="stack-right">
+        <span class="type-badge text">Text</span>
+        <span class="watched-check">&#10003;</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================
+     LAYOUT C: Top-shelf spotlight
+     ============================================ -->
+<div class="layout-view" id="layoutC">
+  <div class="tv-safe">
+    <div class="layout-desc">
+      <strong>Layout C: Top-Shelf Spotlight.</strong> The focused item expands into a large spotlight area at the top with a preview image, full title, and metadata. Below it, remaining posts sit in a compact scannable list. As you navigate, the spotlight updates.
+    </div>
+
+    <div class="spotlight-area">
+      <div class="spotlight-bg" style="background-image: url('https://images.unsplash.com/photo-1531366936337-7c912a4589a7?w=800&h=400&fit=crop');"></div>
+      <div class="spotlight-content">
+        <img class="spotlight-image" src="https://images.unsplash.com/photo-1531366936337-7c912a4589a7?w=600&h=400&fit=crop" alt="">
+        <div class="spotlight-info">
+          <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+            <span class="type-badge image">Image</span>
+            <div class="unwatched-dot"></div>
+          </div>
+          <div class="spotlight-title">Incredible aurora borealis captured from my backyard last night in northern Minnesota</div>
+          <div class="spotlight-meta">
+            <span class="sub">r/space</span><span class="sep"></span><span>3 hours ago</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-label">Up Next</div>
+
+    <div class="compact-row">
+      <img class="c-thumb" src="https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=120&h=90&fit=crop" alt="">
+      <span class="c-title">I finally perfected my grandmother's pasta recipe after 2 years of trying</span>
+      <div class="c-right">
+        <span class="c-meta">r/Cooking</span>
+        <span class="type-badge video">Video</span>
+        <div class="unwatched-dot"></div>
+      </div>
+    </div>
+
+    <div class="compact-row">
+      <img class="c-thumb" src="https://images.unsplash.com/photo-1446776811953-b23d57bd21aa?w=120&h=90&fit=crop" alt="">
+      <span class="c-title">New James Webb photos just dropped - 12 images of galaxies we've never seen before</span>
+      <div class="c-right">
+        <span class="c-meta">r/space</span>
+        <span class="type-badge gallery">Gallery</span>
+        <div class="unwatched-dot"></div>
+      </div>
+    </div>
+
+    <div class="compact-row">
+      <div class="c-thumb" style="background: linear-gradient(135deg, #141420, #1a1a2e); display:flex; align-items:center; justify-content:center;">
+        <span style="font-size:14px; color:rgba(128,192,128,0.4); font-weight:700;">Aa</span>
+      </div>
+      <span class="c-title">After 10 years as a software engineer, here's what I wish someone told me on day one</span>
+      <div class="c-right">
+        <span class="c-meta">r/cscareerquestions</span>
+        <span class="type-badge text">Text</span>
+        <div class="unwatched-dot"></div>
+      </div>
+    </div>
+
+    <div class="compact-row">
+      <img class="c-thumb" src="https://images.unsplash.com/photo-1611162616475-46b635cb6868?w=120&h=90&fit=crop" alt="">
+      <span class="c-title">Incredible breakdown of how GPS actually works at the signal level</span>
+      <div class="c-right">
+        <span class="c-meta">r/technology</span>
+        <span class="type-badge youtube">YouTube</span>
+        <div class="unwatched-dot"></div>
+      </div>
+    </div>
+
+    <div class="compact-row">
+      <img class="c-thumb" src="https://images.unsplash.com/photo-1485827404703-89b55fcc595e?w=120&h=90&fit=crop" alt="">
+      <span class="c-title">OpenAI announces new reasoning model that can solve PhD-level science problems</span>
+      <div class="c-right">
+        <span class="c-meta">r/technology</span>
+        <span class="type-badge link">Link</span>
+        <div class="unwatched-dot"></div>
+      </div>
+    </div>
+
+    <div class="section-label section-gap">Watched</div>
+
+    <div class="compact-row watched">
+      <img class="c-thumb" src="https://images.unsplash.com/photo-1587300003388-59208cc962cb?w=120&h=90&fit=crop" alt="">
+      <span class="c-title">My golden retriever learned to open the fridge and now he judges everything inside it</span>
+      <div class="c-right">
+        <span class="c-meta">r/funny</span>
+        <span class="type-badge video">Video</span>
+        <span class="watched-check">&#10003;</span>
+      </div>
+    </div>
+
+    <div class="compact-row watched">
+      <img class="c-thumb" src="https://images.unsplash.com/photo-1507400492013-162706c8c05e?w=120&h=90&fit=crop" alt="">
+      <span class="c-title">Sunset over the Cascades from the ferry yesterday evening</span>
+      <div class="c-right">
+        <span class="c-meta">r/Seattle</span>
+        <span class="type-badge image">Image</span>
+        <span class="watched-check">&#10003;</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================
+     DETAIL VIEWS (shared across all layouts)
+     ============================================ -->
+<div class="layout-view" id="layoutDetail">
+  <div class="tv-safe">
+    <div class="layout-desc">
+      <strong>Detail Views.</strong> These are the same regardless of which browse layout you choose. Clicking any post opens it full-screen. Back/Menu always returns to the list.
+    </div>
+
+    <div style="display:flex; gap:8px; margin-bottom:32px; flex-wrap:wrap;">
+      <button class="layout-btn active" onclick="showDetail('video')">Video</button>
+      <button class="layout-btn" onclick="showDetail('image')">Image</button>
+      <button class="layout-btn" onclick="showDetail('text')">Text</button>
+      <button class="layout-btn" onclick="showDetail('youtube')">YouTube</button>
+    </div>
+
+    <div id="detailContent">
+      <div id="d-video">
+        <div class="fs-video" style="margin: 0 auto;">
+          <img src="https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=1200&h=675&fit=crop" alt="">
+          <div class="fs-play">&#9654;</div>
+          <div class="fs-progress"><div class="fs-progress-fill"></div></div>
+        </div>
+        <div style="text-align:center;">
+          <button class="replay-btn">Replay</button>
+        </div>
+      </div>
+
+      <div id="d-image" style="display:none; text-align:center;">
+        <img class="fs-image" src="https://images.unsplash.com/photo-1531366936337-7c912a4589a7?w=1400&h=900&fit=crop" alt="">
+      </div>
+
+      <div id="d-text" style="display:none; max-width:720px; margin:0 auto;">
+        <h1 style="font-size:30px; font-weight:600; line-height:1.3; margin-bottom:24px;">After 10 years as a software engineer, here's what I wish someone told me on day one</h1>
+        <div style="font-size:18px; line-height:1.8; color:#bbb;">
+          <p>I've been in the industry for a decade now, and looking back there are things I wish I'd internalized much earlier in my career. I'm not talking about technical skills - those you pick up naturally. I'm talking about the meta-skills that nobody teaches you.</p>
+          <br>
+          <p>First, your ability to communicate clearly is worth more than your ability to write clever code. I've seen brilliant engineers stall their careers because they couldn't explain their work to non-technical stakeholders.</p>
+          <br>
+          <p>Second, learn to say "I don't know" early and often. The instinct to pretend you understand something when you don't will cost you weeks of wasted effort. Nobody expects you to know everything.</p>
+        </div>
+      </div>
+
+      <div id="d-youtube" style="display:none; text-align:center; max-width:640px; margin:0 auto;">
+        <div style="width:100%; aspect-ratio:16/9; background:#141418; border-radius:14px; display:flex; align-items:center; justify-content:center; position:relative; overflow:hidden; margin-bottom:24px;">
+          <img src="https://images.unsplash.com/photo-1611162616475-46b635cb6868?w=800&h=450&fit=crop" style="width:100%; height:100%; object-fit:cover; opacity:0.5;" alt="">
+          <div style="position:absolute; width:64px; height:64px; border-radius:50%; background:rgba(224,64,64,0.9); display:flex; align-items:center; justify-content:center; font-size:24px;">&#9654;</div>
+        </div>
+        <div style="font-size:22px; font-weight:600; line-height:1.35; margin-bottom:12px;">Incredible breakdown of how GPS actually works at the signal level</div>
+        <div style="font-size:14px; color:#666; margin-bottom:24px;">r/technology &middot; 10 hours ago &middot; youtube.com</div>
+        <button style="padding:14px 40px; border-radius:12px; background:rgba(224,64,64,0.15); border:1px solid rgba(224,64,64,0.25); color:#e04040; font-size:16px; font-weight:600; cursor:pointer; transition:all 0.2s;" onmouseover="this.style.background='rgba(224,64,64,0.25)'" onmouseout="this.style.background='rgba(224,64,64,0.15)'">Open in YouTube</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  function switchLayout(id) {
+    document.querySelectorAll('.layout-view').forEach(v => v.classList.remove('active'));
+    document.querySelectorAll('.layout-switcher .layout-btn').forEach(b => b.classList.remove('active'));
+
+    if (id === 'detail') {
+      document.getElementById('layoutDetail').classList.add('active');
+      document.querySelectorAll('.layout-switcher .layout-btn')[3].classList.add('active');
+    } else {
+      document.getElementById('layout' + id).classList.add('active');
+      const idx = { A: 0, B: 1, C: 2 }[id];
+      document.querySelectorAll('.layout-switcher .layout-btn')[idx].classList.add('active');
+    }
+  }
+
+  function showDetail(type) {
+    const types = ['video', 'image', 'text', 'youtube'];
+    types.forEach(t => {
+      document.getElementById('d-' + t).style.display = (t === type) ? '' : 'none';
+    });
+    document.querySelectorAll('#layoutDetail .layout-btn').forEach((b, i) => {
+      b.classList.toggle('active', types[i] === type);
+    });
+  }
+</script>
+
+</body>
+</html>

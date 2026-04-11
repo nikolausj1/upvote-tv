@@ -1,0 +1,15 @@
+# Reddit API credentials - never commit
+Secrets.plist
+
+# Xcode
+build/
+DerivedData/
+*.xcuserstate
+*.xcworkspace/xcuserdata/
+
+# macOS
+.DS_Store
+
+# SwiftPM
+.swiftpm/
+xcuserdata/
