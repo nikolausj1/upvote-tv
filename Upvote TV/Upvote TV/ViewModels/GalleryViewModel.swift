@@ -9,8 +9,7 @@ final class GalleryViewModel: ObservableObject {
     @Published var isLoading = true
     @Published var focusedPostID: String?
     @Published var loadError: ContentProviderError?
-    @Published var isShowingCachedContent = false
-    @Published var cachedContentDate: Date?
+    @Published var hasAttemptedLoad = false
 
     private let provider: ContentProvider
     let watchedManager: WatchedStateManager
@@ -20,7 +19,7 @@ final class GalleryViewModel: ObservableObject {
         self.watchedManager = watchedManager
     }
 
-    // MARK: - Computed
+    // MARK: - Computed state
 
     var filteredPosts: [Post] {
         NSFWFilterService.filter(posts)
@@ -28,12 +27,16 @@ final class GalleryViewModel: ObservableObject {
 
     var unwatchedPosts: [Post] {
         filteredPosts.filter { !isWatched($0.id) }
-            .sorted { $0.createdAt > $1.createdAt }
+            .sorted { Self.sortDate(for: $0) > Self.sortDate(for: $1) }
     }
 
     var watchedPosts: [Post] {
         filteredPosts.filter { isWatched($0.id) }
-            .sorted { $0.createdAt > $1.createdAt }
+            .sorted { Self.sortDate(for: $0) > Self.sortDate(for: $1) }
+    }
+
+    private static func sortDate(for post: Post) -> Date {
+        post.sharedAt ?? post.createdAt
     }
 
     var sortedPosts: [Post] {
@@ -58,6 +61,22 @@ final class GalleryViewModel: ObservableObject {
         watchedMap[postID] ?? false
     }
 
+    /// Queue transport can't be reached or isn't configured. Browse view renders ConnectionErrorView.
+    var showConnectionError: Bool {
+        guard let err = loadError else { return false }
+        switch err {
+        case .configurationMissing, .networkError, .rateLimited, .invalidResponse:
+            return true
+        case .unknown:
+            return true
+        }
+    }
+
+    /// The queue is accessible but has no items. Browse view renders EmptyQueueView.
+    var showEmptyQueue: Bool {
+        !isLoading && loadError == nil && hasAttemptedLoad && posts.isEmpty
+    }
+
     // MARK: - Debug
 
     // Flip to true to test the "You're Caught Up" state
@@ -66,29 +85,29 @@ final class GalleryViewModel: ObservableObject {
     // MARK: - Actions
 
     func loadPosts() async {
-        isLoading = true
+        if !hasAttemptedLoad {
+            isLoading = true
+        }
         loadError = nil
         do {
             let fetched = try await provider.fetchUpvotedPosts()
             posts = fetched
-            isShowingCachedContent = false
             if debugMarkAllWatched {
                 for post in fetched { watchedManager.markWatched(post.id) }
             }
             refreshWatchedMap()
         } catch let error as ContentProviderError {
             loadError = error
-            // If we have cached posts, keep showing them with stale banner
-            if !posts.isEmpty {
-                isShowingCachedContent = true
-            }
         } catch {
-            loadError = .unknown(underlying: error)
-            if !posts.isEmpty {
-                isShowingCachedContent = true
-            }
+            loadError = .unknown
         }
+        hasAttemptedLoad = true
         isLoading = false
+    }
+
+    /// Re-poll the queue file without showing a loading spinner. Used by EmptyQueueView.
+    func pollForNewItems() {
+        Task { await loadPosts() }
     }
 
     func toggleWatched(for postID: String) {
@@ -104,6 +123,21 @@ final class GalleryViewModel: ObservableObject {
     func markUnwatched(_ postID: String) {
         watchedManager.markUnwatched(postID)
         watchedMap[postID] = false
+    }
+
+    /// Remove an item from the queue. Updates the in-memory list immediately, then
+    /// persists via the provider (which rewrites queue.json and drops the cache entry).
+    func removeFromQueue(postID: String) {
+        posts.removeAll { $0.id == postID }
+        watchedMap[postID] = nil
+        Task {
+            do {
+                try await provider.removeItem(postID: postID)
+            } catch {
+                // Best-effort: the UI is already updated. On next fetch the item may reappear
+                // if the remote write failed (e.g., iCloud glitch). Swallow silently in v1.
+            }
+        }
     }
 
     private func refreshWatchedMap() {

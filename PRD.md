@@ -1,23 +1,35 @@
 ---
-title: "PRD: Upvote TV - Personal tvOS Reddit Viewer"
+title: "PRD: Upvote TV - Personal tvOS Shared Queue Viewer"
 created: 2026-04-10
-modified: 2026-04-10
-version: 2.0
-author: Claude Opus 4.6 (claude-opus-4-6)
+modified: 2026-04-17
+version: 3.2
+author: Claude Opus 4.7 (claude-opus-4-7)
 tags:
 ---
 
 # PRD: Upvote TV
 
-A personal Apple TV app that turns recently upvoted Reddit posts into a curated TV viewing queue.
+A personal Apple TV app that turns curated iPhone-shared content into a TV viewing queue for two people.
+
+---
+
+## Revision Notes
+
+**v3.2 (2026-04-18):** Capture mechanism swapped from an iOS Shortcut to a native iOS companion app with a Share Extension. The Shortcut approach turned out to be fragile to debug (misleading error states, UI-only configuration, no real step-through inspection) and slow to iterate on. A proper iOS app reuses the same Swift queue-client code as tvOS, is under version control, and provides native auth+lifecycle handling. GitHub Gist remains the transport.
+
+**v3.1 (2026-04-17):** Queue transport swapped from iCloud Drive to a GitHub Gist. Apple's developer portal does not grant `com.apple.developer.ubiquity-container-identifiers` to tvOS App IDs (verified via both automatic and manual provisioning profile generation), which made file-based iCloud Documents unusable on a real Apple TV. The rest of the v3 architecture (mock/queue/Reddit-API provider abstraction, on-the-fly metadata resolution) is unchanged — only the file-transport layer moved.
+
+**v3.0 (initial v3):** Strategic shift away from Reddit API integration as the primary data source. Reddit's Responsible Builder Policy (rolled out late 2025) now gates all API access behind a manual approval process with unpredictable wait times. Rather than block the project on an external approval queue, v1 pivots to a share-sheet-driven queue model that requires no Reddit authentication and adds YouTube support from day one. Reddit API integration is preserved as a future optional provider (Phase 7) if approval is eventually granted.
 
 ---
 
 ## Problem Statement
 
-Justin upvotes Reddit posts throughout the day on his phone as a lightweight way to bookmark content he wants to share with his wife later. When they sit down in front of the TV together, there's no good way to pull up that curated list and browse it on the big screen. Reddit's own tvOS app is discontinued, and browsing Reddit via AirPlay or screen mirroring is clunky and kills the "lean back" TV experience.
+Justin and his wife collect content throughout the day (from Reddit, YouTube, and similar) that they want to watch together on the TV later. Apple TV's only native "queue" mechanisms are platform-specific (YouTube Watch Later, Apple TV+ Up Next, etc.) and don't combine sources or allow a shared household queue. Reddit's tvOS app is discontinued, and browsing via AirPlay or screen mirroring kills the "lean back" TV experience.
 
-The app should make it feel like they have a personal content feed on their Apple TV, not like they're using a developer tool to query an API.
+The original v2 plan used Reddit upvotes as the implicit curation signal and fetched them via the Reddit API. With Reddit's 2025 Responsible Builder Policy restricting API access, v3 replaces that with a more flexible explicit-curation model: anything shared from an iPhone via the share sheet lands in a shared queue (a GitHub Gist, after the v3.1 pivot) that appears on the Apple TV.
+
+The app should feel like a personal content feed on the living room TV, not like a developer tool.
 
 ## Target Users
 
@@ -25,25 +37,30 @@ Justin and his wife. This is a personal-use app, not intended for public distrib
 
 ## Goals
 
-1. Fetch the 100 most recent upvoted Reddit posts and display them in a polished two-pane Apple TV interface.
-2. Track which posts have been watched on the TV so unwatched content is always prioritized.
-3. Support video, image, text, gallery, and link post types with graceful degradation for anything that can't render perfectly.
-4. Feel like a premium, minimal Apple TV media app - not a Reddit client or a developer utility.
-5. Keep the codebase structured so Reddit integration is isolated behind an abstraction, making the app testable and improvable without live API access.
+1. Capture content from any iPhone in the household via the share sheet into a shared queue.
+2. Store the queue as a JSON file in iCloud Drive, accessible to the Apple TV.
+3. Display the queue on Apple TV in a polished, minimal interface.
+4. Support Reddit and YouTube as primary content sources in v1.
+5. Resolve post metadata (titles, thumbnails, media URLs) on the TV side from public endpoints that require no authentication.
+6. Track watched state locally on the Apple TV.
+7. Keep the architecture flexible so Reddit API can be added later as a supplemental provider if access is approved.
 
 ## Non-Goals (v1)
 
 These are explicitly out of scope for v1:
 
-- **Browsing Reddit broadly.** No subreddits, home feed, popular feed, or search. The only data source is the user's upvoted posts.
-- **Social features.** No comments, voting from TV, saving posts, or account switching.
-- **Public distribution.** No App Store submission, public onboarding flow, or companion iOS/Mac app.
-- **Backend services.** No server, no cloud sync, no cross-device watched state.
-- **In-app authentication UI.** Auth is configured manually by the developer outside the app.
-- **Manual refresh controls.** The app refreshes automatically on launch. No pull-to-refresh or refresh button.
-- **Post-to-post navigation in detail view.** No next/previous swiping between Reddit posts. The user always returns to the gallery list to pick the next item.
-- **Offline media caching.** Metadata and watched state persist locally, but media loads on demand.
-- **Settings screen.** The only user preference (NSFW toggle) lives in tvOS system Settings via Settings.bundle.
+- **Native companion iPhone app.** Capture is handled entirely by an iOS Shortcut, not a custom app or Share Extension.
+- **CloudKit.** Queue storage is a plain JSON file in iCloud Drive. No CloudKit container, no custom schemas.
+- **Direct Reddit authentication.** No OAuth, no refresh tokens, no Secrets.plist tokens.
+- **Cloud-synced watched state.** Watched state is local to each Apple TV.
+- **Arbitrary URL support.** The Shortcut rejects any domain outside the Reddit / YouTube whitelist in v1.
+- **Browsing Reddit or YouTube broadly.** No subreddits, home feed, search, or channel browsing. The only content is what's in the queue.
+- **Social features.** No comments, voting, saving, account management.
+- **Server components.** No backend, no proxy, no cloud function.
+- **Offline media caching.** Metadata and watched state persist locally. Media loads on demand.
+- **Settings screen in-app.** The only user preference (NSFW toggle) lives in tvOS system Settings via Settings.bundle.
+- **Manual refresh in-app.** The app refreshes automatically on launch.
+- **Post-to-post navigation in detail view.** User always returns to the queue list to pick the next item.
 
 ---
 
@@ -52,544 +69,477 @@ These are explicitly out of scope for v1:
 ### System Diagram
 
 ```
-+--------------------------------------------------+
-|                   Upvote TV App                   |
-|                                                   |
-|  +------------+    +-------------------------+    |
-|  |   UI Layer |    |  Content Provider       |    |
-|  |  (SwiftUI) |--->|  (Protocol)             |    |
-|  +------------+    +-------+-----------+-----+    |
-|                        |               |          |
-|              +---------+----+  +-------+-------+  |
-|              | Reddit       |  | Mock           |  |
-|              | Provider     |  | Provider       |  |
-|              +---------+----+  +---------------+  |
-|                        |                          |
-|              +---------+----+                     |
-|              | Auth Service |                     |
-|              | (Token Mgmt) |                     |
-|              +--------------+                     |
-|                                                   |
-|  +---------------+    +----------------------+    |
-|  | Persistence   |    | Media Loading        |    |
-|  | (SwiftData)   |    | (AVKit + URLSession) |    |
-|  +---------------+    +----------------------+    |
-+--------------------------------------------------+
++----------------------------+    +----------------------------+
+|  iPhone (Justin)           |    |  iPhone (Wife)             |
+|                            |    |                            |
+|  Safari / Reddit / YT app  |    |  Safari / Reddit / YT app  |
+|          |                 |    |          |                 |
+|          v  Share Sheet    |    |          v  Share Sheet    |
+|  +-----------------------+ |    |  +-----------------------+ |
+|  | Upvote TV Share Ext.  | |    |  | Upvote TV Share Ext.  | |
+|  | (iOS Share Extension) | |    |  | (iOS Share Extension) | |
+|  +----------|------------+ |    |  +----------|------------+ |
++-------------|--------------+    +-------------|--------------+
+              |                                 |
+              +----------------+----------------+
+                               |
+                               v  (HTTPS GET+PATCH with PAT)
+                    +-------------------------+
+                    |  GitHub Gist             |
+                    |  queue.json              |
+                    +-------------------------+
+                               |
+                               v  (HTTPS GET with PAT)
+                    +-------------------------+
+                    |  Apple TV App            |
+                    |  reads queue.json        |
+                    |  resolves metadata from: |
+                    |  - reddit.com/.json      |
+                    |  - youtube.com/oembed    |
+                    |  caches to SwiftData     |
+                    +-------------------------+
 ```
+
+### ContentProvider Architecture
+
+The UI depends on a `ContentProvider` protocol. Three implementations live in the codebase:
+
+1. **MockContentProvider** (dev and SwiftUI previews). Returns a hand-crafted set of sample posts covering all supported types. Used during Phases 1-3 before any queue integration.
+
+2. **QueueContentProvider** (v1 primary). Reads `queue.json` from a secret GitHub Gist, hydrates each queue item into a full `Post` by calling the appropriate metadata resolver, caches results in SwiftData.
+
+3. **RedditContentProvider** (reserved for Phase 7). Implemented only if Reddit API access is eventually approved. Would fetch 100 most recent upvoted posts directly. Could be used as a supplement to or replacement for `QueueContentProvider`.
 
 ### Layer Responsibilities
 
-**UI Layer (SwiftUI):** All screens, focus handling, and visual presentation. Consumes a `ContentProvider` protocol. Never talks to Reddit directly.
+**UI Layer (SwiftUI):** All screens, focus handling, visual presentation. Consumes the `ContentProvider` protocol. Never talks to Reddit, YouTube, or GitHub directly.
 
-**Content Provider Protocol:** Abstraction that the UI depends on. Defines methods like `fetchUpvotedPosts()` and returns normalized app-level models. Two concrete implementations:
-- `RedditContentProvider` - fetches from Reddit API
-- `MockContentProvider` - returns local test data for development and SwiftUI previews
+**Content Provider Layer:** Normalizes external data into app-level `Post` models.
 
-**Auth Service:** Manages OAuth token lifecycle. Reads initial refresh token from config file, handles token refresh, persists rotated tokens, surfaces auth failures clearly.
+**Metadata Resolvers:** Per-source services that take a `QueueItem` (id, url, source) and return a hydrated `Post`. Two resolvers in v1: `RedditMetadataResolver` (uses `reddit.com/comments/{id}.json`) and `YouTubeMetadataResolver` (uses YouTube oEmbed). Both unauthenticated.
 
-**Persistence Layer (SwiftData):** Stores cached post snapshots, watched state, and rotated auth tokens locally on device.
+**Gist Queue Client:** HTTP client wrapping `api.github.com/gists/{id}`. `fetch()` retrieves the queue JSON; `upsert(items:)` PATCHes the gist with a full replacement. Both authenticated with a fine-grained Personal Access Token. Used by `QueueContentProvider` for reads, and by the context-menu "Remove from Queue" action for writes.
 
-**Media Loading Layer:** Loads images and video on demand using platform APIs. Handles Reddit's media URL resolution quirks (see Media Handling section).
+**Persistence (SwiftData):** Stores cached `Post` snapshots, watched state, and metadata-cache freshness timestamps.
+
+**Media Loading:** AVKit for video, URLSession for images. Unchanged from v2.
 
 ### Why This Matters
 
-Reddit API access can be flaky, rate-limited, or break due to token issues. By isolating Reddit behind a provider protocol, the UI layer remains fully testable, previewable, and polishable even when the API is unavailable. The `MockContentProvider` should be the first thing built, and the app should be fully functional with mock data before any Reddit integration begins.
+The queue model inverts the original data-flow assumption. Instead of authenticating to a Reddit API and pulling down a user's history, the app receives an already-curated queue written by a Share Extension on iPhone. This has three advantages:
+
+1. **No OAuth dance.** A single long-lived fine-grained Personal Access Token on the GitHub side — no refresh chain, no approval queue. (Token rotation is yearly, on a user-predictable schedule.)
+2. **Multi-source from day one.** The same queue mechanism works for Reddit, YouTube, and any future source we decide to whitelist.
+3. **Shared curation.** Any iPhone in the household with the Upvote TV iOS app installed contributes to the same queue. The living room TV becomes a shared household surface.
 
 ---
 
 ## Prerequisites (Before Writing Any Code)
 
-These steps must be completed by Justin manually before the app can function.
-
 ### 1. Apple Developer Account
 
-Sign up at developer.apple.com. A free account works for personal development, but a paid account ($99/year) is needed to install apps on a physical Apple TV. For Simulator-only development, free is fine.
+Sign up at developer.apple.com. A free account works for personal development, but a paid account ($99/year) is needed to install apps on a physical Apple TV.
 
 ### 2. Xcode Installation
 
-Install Xcode from the Mac App Store. Ensure tvOS SDK and Simulator are included (check Xcode > Settings > Platforms).
+Install Xcode from the Mac App Store. Ensure tvOS SDK and Simulator are included.
 
-### 3. Reddit API Application Registration
+### 3. GitHub Gist Setup
 
-Go to https://www.reddit.com/prefs/apps and create a new application:
-- Type: "installed app" (not "web app" or "script")
-- Name: "Upvote TV" (or anything)
-- Redirect URI: a custom scheme like `upvotetv://auth/callback`
-- Note the **client ID** (shown under the app name)
+- Create a secret Gist at gist.github.com containing a file named `queue.json` seeded with `{"version":1,"items":[]}`.
+- Copy the gist's ID (the hex segment at the end of its URL). It's used by both the Apple TV app and the iPhone Shortcut.
+- See `docs/Gist-Setup.md` for step-by-step screenshots.
 
-### 4. Obtain Initial Reddit Refresh Token
+### 4. Personal Access Token
 
-This is the trickiest manual step. Because tvOS has no web browser, the initial OAuth authorization must happen on a computer. The process:
+- At github.com/settings/personal-access-tokens/new, generate a **fine-grained** PAT scoped to **Gists: read + write** only. 1-year expiration is the max GitHub allows.
+- The token is embedded in a single `Secrets.plist` (gitignored) that is symlinked into all three app targets (tvOS, iOS app, iOS Share Extension).
+- Token rotation is a manual yearly task.
 
-1. Open a browser and visit Reddit's authorization URL with the app's client ID, requesting `history` and `identity` scopes (the `history` scope is what grants access to upvoted posts)
-2. Authorize the app when Reddit prompts
-3. Reddit redirects to the custom scheme URL with an authorization code
-4. Exchange that code for an access token + refresh token using a curl command or simple script
-5. Save the refresh token - this is what goes into the app's config file
+### 5. Xcode Configuration
 
-**Claude Code should generate a helper script** that walks through this process and outputs the refresh token. This is a one-time setup step.
+No iCloud capability needed on any target. The tvOS entitlements file is empty. Xcode auto-signing with a paid Apple Developer Program account handles iOS + tvOS app provisioning.
 
-### 5. Configuration File
+### 6. iOS Companion App Installation
 
-Create a `Secrets.plist` file (excluded from source control via .gitignore) containing:
-- `redditClientID` - the client ID from step 3
-- `redditRefreshToken` - the refresh token from step 4
-- `redditUsername` - the Reddit username
+The iOS app lives as two Xcode targets (`Upvote TV Mobile` and `Upvote TV Share`). For the household maintainer, install via Xcode → Run on the paired iPhone. For other family members, distribute via TestFlight internal testers (free, no App Store review required for up to 100 testers on your team). See `docs/iOS-App.md` for details.
 
 ---
 
-## Authentication Architecture
+## Capture Mechanism (iOS Companion App + Share Extension)
 
-### Token Lifecycle
+### Overview
 
-Reddit OAuth tokens work as follows:
-- Access tokens expire after 1 hour
-- Refresh tokens are **single-use** - each time you use one to get a new access token, Reddit issues a new refresh token and invalidates the old one
-- If a refresh token is used twice (or an old one is reused), the entire token chain is invalidated
+The iOS app `Upvote TV Mobile` ships with a Share Extension target `Upvote TV Share`. The extension registers with iOS's share sheet for URL content types, meaning it appears whenever the user shares a URL from Safari, Reddit, YouTube, or any other app. When invoked, it classifies the URL via `URLClassifier`, appends a `QueueItem` to the shared GitHub Gist via `GistQueueClient`, and auto-dismisses on success.
 
-### What the App Must Do
+The Mobile app itself is a thin container: a single screen explaining the share-sheet workflow and a "Test Connection" button that verifies the PAT still works against the Gist. All real work lives in the extension.
 
-1. On launch, read the refresh token from local persistence (or from `Secrets.plist` on first launch)
-2. Use the refresh token to obtain a new access token
-3. **Immediately persist the new refresh token** returned in the response - this replaces the old one
-4. Use the access token for all API calls until it expires
-5. When the access token expires, repeat from step 2
+### Input
 
-### Auth Failure States
+The Share Extension is activated when the user shares a single URL from any iOS app. `Info.plist` declares `NSExtensionActivationSupportsWebURLWithMaxCount = 1` — iOS will only show the extension for URL content and with exactly one URL.
 
-When auth fails (invalid/expired refresh token, Reddit account password change, token revocation):
-- Show a clear, non-technical error screen: "Authentication expired. You'll need to generate a new refresh token."
-- Include a brief instruction pointing to the setup process
-- The app should still display cached content if available, with a banner indicating data may be stale
-- Do not show raw HTTP errors, token strings, or API response codes in the normal UI
+### Validation and Normalization
 
-### Auth Error Debug Mode
+**Reddit domains:**
+- `reddit.com`, `www.reddit.com`, `old.reddit.com`, `new.reddit.com`, `np.reddit.com`: all normalize host to `www.reddit.com`.
+- `redd.it/{id}`: rewrite to `https://www.reddit.com/comments/{id}`.
+- `i.redd.it/*`, `v.redd.it/*`: reject. These are media hosts, not post URLs.
+- Post URL path structure: `/r/{sub}/comments/{id}/{slug}/...`. The ID is the only segment needed.
 
-In debug builds only, include additional diagnostic information:
-- HTTP status codes
-- Token validation state
-- Last successful auth timestamp
-- API error response bodies
+**YouTube domains:**
+- `youtube.com/watch?v={id}`: extract the `v` query parameter.
+- `youtu.be/{id}`: extract the path segment.
+- `youtube.com/shorts/{id}`: extract the path segment.
+- `m.youtube.com`, `music.youtube.com`: normalize host to `www.youtube.com`.
+
+**All other domains:** reject with a user-facing toast ("Only Reddit and YouTube are supported in Upvote TV").
+
+### Behavior Sequence
+
+1. User taps Share → Upvote TV in any iOS app; iOS passes the URL into the extension.
+2. `URLClassifier.classify(url)` extracts the post/video ID and `QueueSource`. If the URL is neither Reddit nor YouTube, show "Only Reddit posts and YouTube videos can be added" and stop.
+3. `GistQueueClient.fetch()` GETs the current queue from the gist.
+4. Deduplicate — if an item with matching `id + source` already exists, show "Already Queued" and auto-dismiss.
+5. Prepend the new `QueueItem` (newest `sharedAt` first) and `GistQueueClient.upsert()` PATCHes the gist atomically.
+6. Show the green check "Added" state and auto-dismiss after ~1.2 seconds.
+
+### Error Handling (surface-level, shared with the tvOS app's `GistQueueClient.ClientError`)
+
+- `configurationMissing`: "Secrets.plist is missing GistID or GistToken."
+- `unauthorized`: "Token rejected. It may have expired."
+- `notFound`: "Gist not found. Check the Gist ID."
+- `rateLimited`: "GitHub is throttling. Try again in a minute."
+- `network`: "Network error. Check your internet connection."
+- Any unhandled: "Couldn't reach the queue."
+
+### Race Conditions (Known Limitation)
+
+If both phones trigger the Share Extension within the same second, both GET the same gist state, both prepend their item, both PATCH. Last writer wins and one share is silently lost. This is acknowledged as rare (requires near-simultaneous taps on both devices within the PATCH round-trip) and acceptable for v1. A proper fix would require optimistic concurrency via gist ETag / If-Match, which is a v2+ consideration.
 
 ---
 
-## Reddit API Integration
+## Queue File Specification
 
-### Endpoint
+### Path
 
-`GET /user/{username}/upvoted`
-- Requires OAuth with `history` scope
-- Returns paginated results (25 items per page by default, max 100 per request via `limit` parameter)
-- Use `after` parameter for pagination to fetch additional pages if needed
+A single file named `queue.json` inside a secret GitHub Gist owned by the household maintainer. The gist ID is stable and shared across all clients (iPhones running the Shortcut, the Apple TV). Accessed via:
 
-### Rate Limits
+- Read: `GET https://api.github.com/gists/{gist_id}`
+- Write: `PATCH https://api.github.com/gists/{gist_id}` with `{"files":{"queue.json":{"content":"<full JSON string>"}}}`
 
-Reddit allows 60 authenticated requests per minute for free-tier (non-commercial) use. For this app, a single launch will need:
-- 1-2 requests to fetch 100 upvoted posts (one request with `limit=100`, or two paginated requests)
-- 1 request per token refresh
+Both require `Authorization: Bearer <fine-grained PAT>`.
 
-This is well within limits. However, the app should:
-- Respect `X-Ratelimit-Remaining` and `X-Ratelimit-Reset` headers
-- Handle HTTP 429 (rate limited) by waiting and retrying once
-- Never retry more than once automatically
+### Schema
 
-### Response Normalization
+```json
+{
+  "version": 1,
+  "items": [
+    {
+      "id": "1abc2de",
+      "url": "https://www.reddit.com/r/videos/comments/1abc2de/",
+      "source": "reddit",
+      "sharedAt": "2026-04-17T14:23:00Z"
+    },
+    {
+      "id": "dQw4w9WgXcQ",
+      "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+      "source": "youtube",
+      "sharedAt": "2026-04-17T14:30:00Z"
+    }
+  ]
+}
+```
 
-Reddit API responses are messy. The raw JSON structure varies significantly by post type. The content provider must normalize responses into the app's internal `Post` model. Key challenges:
+### Field Definitions
 
-**Video posts (v.redd.it):**
-- Reddit splits video and audio into separate DASH streams
-- The `media.reddit_video` object contains `dash_url`, `hls_url`, and `fallback_url`
-- **Use `hls_url` for tvOS playback** - AVKit handles HLS natively
-- The `fallback_url` is video-only (no audio) - do not use as primary source
-- If `hls_url` is not available, fall back to `fallback_url` with a note that audio may be missing
+- `version`: integer. Schema version. v1 is `1`. Used for future migrations.
+- `items`: array, ordered newest-first by `sharedAt`.
+- `items[].id`: Reddit post ID (short form, e.g., `1abc2de`, no `t3_` prefix) or YouTube video ID.
+- `items[].url`: canonical URL. For Reddit, `https://www.reddit.com/comments/{id}` is the minimal form. For YouTube, `https://www.youtube.com/watch?v={id}`.
+- `items[].source`: either `reddit` or `youtube`.
+- `items[].sharedAt`: ISO8601 UTC timestamp when the Shortcut added the item.
 
-**Image posts:**
-- Reddit-hosted images have a `preview.images` array with multiple resolutions
-- Use the resolution closest to 1920px wide for TV display (the `source` resolution can be very large)
-- External image hosts (imgur, etc.) may need direct URL usage
+### Deliberately Absent Fields
 
-**Gallery posts:**
-- Gallery data is split across two fields: `gallery_data.items` (ordering) and `media_metadata` (URLs keyed by media ID)
-- Each item in `media_metadata` has an `s` (source) object with `u` (URL) and dimensions
-- URLs in `media_metadata` are HTML-encoded (ampersands as `&amp;`) and must be decoded
+- No `title`, `thumbnail`, or other metadata. These are resolved by the tvOS app on the fly. Keeping the Shortcut minimal avoids brittle metadata extraction in Shortcuts and keeps the file small.
+- No `watched` state. Watched state lives in SwiftData on the Apple TV.
 
-**YouTube posts:**
-- Detected during normalization when `domain` contains "youtube.com" or "youtu.be"
-- Extract the video ID from the URL (e.g., `v=dQw4w9WgXcQ` or `youtu.be/dQw4w9WgXcQ`)
-- These cannot be played in-app - tvOS has no web view and YouTube has no embeddable player for third-party tvOS apps
-- Classify as `PostType.youtube` so the UI can show the dedicated YouTube detail view with an "Open in YouTube" button
-- Use Reddit's `preview.images` for the thumbnail/preview image
-- Store the YouTube video ID in `outboundURL` for deep linking
+### File Growth
 
-**Link posts:**
-- May have a `thumbnail` URL but no full media
-- Use `url_overridden_by_dest` for the outbound link
-- `domain` field indicates the source
+No automatic size limit in v1. Items persist in the queue forever unless explicitly removed via the tvOS "Remove from Queue" action. In practice, the list will grow over time. If it becomes a problem (dozens of MB, slow loads), future versions can introduce a "clear items older than N days" behavior.
 
-**Text posts:**
-- `selftext` contains the body (may be markdown)
-- `selftext_html` contains rendered HTML
+---
+
+## Metadata Resolution (tvOS Side)
+
+When the app launches, it reads the queue and hydrates each item into a full `Post` model. Hydration happens in parallel and respects a 24-hour cache.
+
+### Reddit Resolver
+
+- Endpoint: `https://www.reddit.com/comments/{id}.json`
+- Unauthenticated. Standard public web endpoint used by reddit.com for SEO and old.reddit.com.
+- Response: Reddit's standard post listing JSON (same structure as the API, just served from the web host instead of `oauth.reddit.com`).
+- Parse using the normalizer logic originally planned for `RedditContentProvider`.
+- Handle the same post-type variations as v2:
+  - **Video (v.redd.it):** extract `media.reddit_video.hls_url` for AVKit playback. Fallback to `fallback_url` (video-only) with a flag that audio may be missing.
+  - **Image:** use `preview.images[0].resolutions` closest to 1920px wide.
+  - **Gallery:** combine `gallery_data.items` (ordering) with `media_metadata` (URLs, HTML-decoded).
+  - **Text (selftext):** use the `selftext` field.
+  - **YouTube link (Reddit post linking to YouTube):** detect domain, classify as `PostType.youtube`, extract video ID from `url_overridden_by_dest`.
+  - **Link (other external):** use `url_overridden_by_dest` and `domain`.
+
+### YouTube Resolver
+
+- Endpoint: `https://www.youtube.com/oembed?url={videoUrl}&format=json`
+- Unauthenticated. Public oEmbed endpoint.
+- Response fields: `title`, `author_name`, `thumbnail_url`, `thumbnail_width`, `thumbnail_height`.
+- oEmbed does not return video duration. Display without duration or fetch separately if a future enhancement adds this.
+- Every YouTube queue item classifies as `PostType.youtube`, regardless of whether it's a full YouTube video, Short, or Live.
+
+### Caching
+
+- Successful resolutions cached in SwiftData with a `resolvedAt` timestamp.
+- On next launch, items with `resolvedAt` less than 24 hours old are used directly without refetching.
+- Items with stale or missing cache are refetched in the background while the list renders with cached data.
+- If a refetch fails, the cached data is still shown, with a small "Last updated N hours ago" badge on that item.
+
+### Concurrency
+
+- Up to 10 concurrent resolution requests.
+- Per-request timeout: 10 seconds.
+- An item that fails resolution (404, network error, parse error) still appears in the list but renders as a minimal fallback card ("Unable to load," with the raw URL visible).
+
+### Public JSON Endpoint Risk
+
+The Reddit `/comments/{id}.json` endpoint is currently public and unauthenticated. The Responsible Builder Policy primarily governs the OAuth API at `oauth.reddit.com`, not the web host. This is the assumption v1 is built on. If Reddit gates the web JSON endpoint in the future, the Reddit resolver would need to fall back to HTML parsing or be replaced with `RedditContentProvider`. Worth monitoring.
 
 ---
 
 ## Data Models
 
-### Post Model
+### QueueItem (new, internal representation of a queue.json entry)
+
+```
+QueueItem {
+    id: String              // Reddit post ID or YouTube video ID
+    url: String             // Canonical URL from the Shortcut
+    source: QueueSource     // .reddit or .youtube
+    sharedAt: Date          // When the Shortcut added this
+}
+```
+
+### QueueSource (new enum)
+
+```
+QueueSource {
+    case reddit
+    case youtube
+}
+```
+
+### Post (updated)
+
+Mostly unchanged from v2, with one new optional field to preserve the queue's shared-at timestamp for sort order:
 
 ```
 Post {
-    id: String                    // Reddit post ID (e.g., "t3_abc123")
+    id: String
     title: String
-    subreddit: String             // Without "r/" prefix
-    author: String
-    createdAt: Date               // Reddit post creation time
+    subreddit: String?              // Reddit-only, nil for YouTube items
+    author: String?                 // Reddit author or YouTube author_name
+    createdAt: Date                 // Reddit post creation time or YouTube upload date if available
+    sharedAt: Date?                 // From QueueItem; nil for non-queue sources like future RedditContentProvider
     postType: PostType
     
-    // Media URLs (resolved during normalization)
     thumbnailURL: URL?
-    previewImageURL: URL?         // Best resolution for TV display
-    mediaURL: URL?                // Primary media (video HLS URL, full image, etc.)
-    
-    // Gallery-specific
-    galleryItems: [GalleryItem]?  // Ordered list of images
-    
-    // Text-specific  
-    textBody: String?             // Selftext content
-    
-    // Link-specific
+    previewImageURL: URL?
+    mediaURL: URL?
+    galleryItems: [GalleryItem]?
+    textBody: String?
     outboundURL: URL?
-    domain: String?               // e.g., "youtube.com", "nytimes.com"
+    domain: String?
     
-    // Metadata
     isNSFW: Bool
-    score: Int?                   // Upvote count (for display only)
+    score: Int?
 }
 ```
 
-### PostType Enum
+### PostType (unchanged)
 
 ```
 PostType {
-    case video          // v.redd.it, streamable, etc.
-    case image          // Single image (Reddit-hosted or external)
-    case text           // Self/text post
-    case gallery        // Multi-image Reddit gallery
-    case youtube        // YouTube video link (cannot embed, opens YouTube app)
-    case link           // Outbound link with no embeddable media
-    case unsupported    // Anything that can't be categorized
+    case video
+    case image
+    case text
+    case gallery
+    case youtube
+    case link
+    case unsupported
 }
 ```
 
-### GalleryItem Model
+### GalleryItem (unchanged)
 
-```
-GalleryItem {
-    id: String
-    imageURL: URL
-    width: Int
-    height: Int
-    position: Int                 // Display order
-}
-```
+### WatchedState (unchanged, SwiftData)
 
-### WatchedState Model (Persisted via SwiftData)
+### CachedPost (updated, SwiftData)
 
-```
-WatchedState {
-    postID: String                // Keyed to Post.id
-    isWatched: Bool
-    watchedAt: Date?
-    lastViewedAt: Date?
-    viewCount: Int                // Default 0, for future use
-}
-```
+Mirror of `Post`, with `resolvedAt: Date` added for cache-freshness tracking.
 
-### CachedPost Model (Persisted via SwiftData)
+### ~~AuthState~~ (removed)
 
-```
-CachedPost {
-    // Mirror of Post model fields, stored locally
-    // Used when API refresh fails so the app still has content to show
-    cachedAt: Date                // When this snapshot was stored
-}
-```
-
-### AuthState Model (Persisted via SwiftData)
-
-```
-AuthState {
-    refreshToken: String
-    accessToken: String?
-    accessTokenExpiresAt: Date?
-    lastRefreshAt: Date?
-}
-```
+v2's `AuthState` model is gone. No auth to persist in v1.
 
 ---
 
 ## Screen-by-Screen Requirements
 
+Screens largely unchanged from v2, with a few updates described below.
+
 ### Screen A: Browse List (Main Screen)
 
-This is the primary screen and the navigation hub. It uses a single-column, full-width list layout. There is no two-pane split or side preview panel. Selecting any post opens it full-screen.
+Unchanged layout and row design. One addition to the context menu:
 
-**Row Layout (Soft Card Style):**
+**Context Menu (Long Press on any row):**
+- Mark as Watched / Mark as Unwatched (toggles based on current state).
+- **Remove from Queue** (new in v3). Immediately removes the item from the queue, updates the UI, rewrites `queue.json`, and drops the cached post from SwiftData.
 
-Each row is a subtle card with a faint background and border. The layout of each row from left to right:
+No confirmation dialog for Remove. Re-adding is trivial via the Shortcut, and confirmation friction hurts the remote-control UX.
 
-1. **Type icon** (left side) - A colored SF Symbol icon in a rounded square container that immediately communicates what kind of content the post is:
-   - Video: `play.rectangle.fill` (red tint)
-   - Image: `photo` (blue tint)
-   - Gallery: `square.stack` (purple tint)
-   - Text: `doc.text` (green tint)
-   - YouTube: `play.rectangle.fill` (red tint, same as video - distinguished by "YouTube" badge or youtube.com domain in metadata)
-   - Link: `arrow.up.right` (amber tint)
-   Each icon container is approximately 40x40pt with a colored background tint matching the content type.
+### Screen A-1: "You're Caught Up" State (unchanged)
 
-2. **Title and metadata** (center, takes remaining width) - The post title is the dominant element. Large, readable, up to 2 lines. Below the title: subreddit name (accent colored), post age, and domain for link/YouTube posts. The title must be easily readable from TV viewing distance (6-10 feet).
+### Screen A-2: Empty Queue State (new in v3)
 
-3. **Thumbnail** (right side, optional) - A small thumbnail image (approximately 96x64pt, rounded corners) appears on the right for posts that have visual content (image, video, gallery, YouTube). Text and link posts without good thumbnails skip the thumbnail entirely, giving the title more breathing room.
+Shown when `queue.json` does not exist or has zero items.
 
-4. **Watched/unwatched indicator** (far right) - Blue dot for unwatched, subtle checkmark for watched.
+- Heading: "Nothing in your queue yet"
+- Subheading: "Share a Reddit post or YouTube video from your iPhone to add it here."
+- Brief instruction: "Make sure you've installed the Upvote TV Shortcut on your iPhone."
+- The screen polls for the queue file every 10 seconds while visible, so a fresh share from iPhone appears without needing to relaunch.
+- No navigation controls. Back button exits the app.
 
-**Card Styling:**
-- Each row has a subtle background fill (approximately 2% white) and faint border (approximately 3% white)
-- Focused/hovered rows brighten slightly with a stronger border and subtle lift/scale
-- Watched rows dim further (1% white background, more transparent border)
-- Spacing between cards: approximately 8pt
+### Screen B: Video Detail View (unchanged)
 
-**Sort Order:**
-1. Unwatched posts first
-2. Watched posts below
-3. Within each group, newest first (by Reddit post creation time)
+### Screen C: Image Detail View (unchanged)
 
-The list order must remain stable. Reopening a watched item does not move it. Marking an item unwatched does not reorder the list until the next app launch/refresh.
+### Screen D: Text Detail View (unchanged)
 
-**Section Headers:**
-- "New" label above the unwatched group
-- "Watched" label above the watched group
-- Small, uppercase, subtle color (similar to system secondary label)
+### Screen E: Gallery Detail View (unchanged)
 
-**Default Focus:**
-- On launch, focus goes to the top item in the list
-- Since unwatched posts sort first and newest first, this should be the newest unwatched post
-- If all posts are watched, focus goes to the "You're Caught Up" synthetic row
+### Screen F-1: YouTube Detail View (unchanged in behavior)
 
-**Context Menu (Long Press):**
-- Long-pressing the select button on any post row opens a context menu
-- MVP options: "Mark as Unwatched" (for watched items) / "Mark as Watched" (for unwatched items)
-- This is a local state change only - nothing is sent to Reddit
+Now also used for YouTube items that came directly from the queue, not just YouTube-domain Reddit posts. Same preview card and "Open in YouTube" button. Same deep-link behavior (`youtube://watch?v={id}` with HTTPS fallback).
 
-### Screen A-1: "You're Caught Up" State
+### Screen F-2: Link / Fallback Detail View (unchanged)
 
-When no unwatched posts exist:
-- A synthetic row appears at the top of the left list, labeled "You're Caught Up"
-- This row receives default focus
-- Watched posts remain visible and browsable below it
-- When this row is focused, the right pane shows: "You're Caught Up" heading with "No new upvoted posts to watch together right now." subtitle
-- Selecting this row does nothing
-- This should look intentional and designed, not like an error or placeholder
+### Screen G: Media Error State (unchanged)
 
-### Screen B: Video Detail View
+### Screen H: Loading State (unchanged)
 
-Triggered by selecting a video-type post from the gallery.
+### Screen I: Connection Error State
 
-- Video autoplays immediately on open
-- Audio is on by default
-- Center click (select button) toggles play/pause
-- Standard tvOS scrubbing behavior via swipe on touchpad
-- At end of playback, show a single "Replay" action - no "Next Post" button
-- Back/Menu button returns to the gallery at the same focused row and scroll position
-- Mark watched when playback reaches 85% duration
+Shown when the queue can't be loaded — `Secrets.plist` is missing, the gist endpoint is unreachable, the token is invalid, or GitHub is rate-limiting.
 
-### Screen C: Image Detail View
+- Heading varies by error:
+  - `configurationMissing`: "Setup Required"
+  - `rateLimited`: "Too Many Requests"
+  - Otherwise: "Can't Reach Your Queue"
+- Body explains the cause and next action (for config errors, points at `docs/Gist-Setup.md`; for network errors, advises a connection check).
+- Debug builds additionally show the gist ID, whether a token is present, and the underlying error code.
 
-Triggered by selecting an image-type post from the gallery.
+### Screen J: Stale Data Banner (unchanged in concept, updated in scope)
 
-- Full-screen image display
-- No buttons or overlays on screen
-- No metadata overlay (not even on center click in v1)
-- Back/Menu returns to gallery at same position
-- Mark watched after 2 seconds
-
-### Screen D: Text Detail View
-
-Triggered by selecting a text-type post from the gallery.
-
-- Title displayed prominently at top
-- Body text below, vertically scrollable via tvOS remote swipe
-- Clean typography, generous margins, optimized for TV reading distance
-- Back/Menu returns to gallery at same position
-- Mark watched after 2 seconds
-
-### Screen E: Gallery Detail View (Multi-Image)
-
-Triggered by selecting a gallery-type post from the gallery.
-
-- Opens into a full-screen image viewer for that single Reddit post's images
-- Left/right swipe navigates between images within the post
-- Small position indicator (e.g., "2 / 5") visible but unobtrusive
-- No filmstrip or thumbnail rail in v1
-- No navigation to other Reddit posts from within this view
-- Back/Menu returns to the main gallery at same position
-- Mark watched after 2 seconds open or after any interaction within the gallery
-
-### Screen F-1: YouTube Detail View
-
-Triggered by selecting a youtube-type post from the gallery. YouTube videos cannot be played inside the app because tvOS has no web view and YouTube does not provide an embeddable player for third-party tvOS apps. Instead, the app shows a preview card and offers to open the YouTube app.
-
-- Large thumbnail/preview image at top
-- Title displayed prominently below
-- "YouTube" badge and video duration if available
-- Subreddit and post age
-- Prominent "Open in YouTube" button that launches the YouTube app via URL scheme (`youtube://watch?v={videoID}` or `https://www.youtube.com/watch?v={videoID}`)
-- If the YouTube app is not installed, the button should handle the failure gracefully (show a brief "YouTube app not found" message)
-- Back/Menu returns to gallery at same position
-- Mark watched after selecting "Open in YouTube" (not after 2 seconds, since the user hasn't seen the content yet just by viewing the card)
-
-### Screen F-2: Link/Fallback Detail View
-
-Triggered by selecting a link-type or unsupported-type post from the gallery.
-
-- Title displayed prominently
-- Domain shown (e.g., "nytimes.com")
-- Text excerpt or selftext if available
-- Thumbnail if available
-- This is a polished information card, not an error state
-- Back/Menu returns to gallery at same position
-- Mark watched after 2 seconds
-
-### Screen G: Media Error State
-
-Shown when a specific post's media fails to load after the detail view opens.
-
-- Title of the post
-- Simple message: "Media could not be loaded"
-- Back/Menu returns to gallery at same position
-- Do not mark as watched
-
-### Screen H: Loading State
-
-Shown on app launch while fetching data.
-
-- App shell (list layout) appears immediately
-- Shows skeleton/placeholder card rows matching the soft card layout
-- Transition to real content when data arrives
-- Should feel fast and intentional, not janky
-
-### Screen I: Auth Error / Setup State
-
-Shown when auth configuration is missing or invalid.
-
-- Clean, non-technical message: "Setup Required" or "Authentication Expired"
-- Brief guidance: "Check the project README for setup instructions."
-- If cached content exists, show it with a stale-data banner instead of this screen
-- Debug builds show additional technical detail below the user-facing message
-
-### Screen J: Stale Data Banner
-
-Shown when the app has cached content but the current refresh failed.
-
-- Small, non-intrusive banner at the top of the gallery
-- Text like: "Showing cached content. Last updated 2 hours ago."
-- Does not block interaction
-- Gallery and detail views function normally with cached data
+Shown when one or more queue items have stale cached metadata because their refresh attempt failed. Per-item badge rather than a global banner.
 
 ---
 
 ## Watched State Rules
 
+Unchanged from v2. Restated for completeness:
+
 | Post Type | When Marked Watched |
 |-----------|-------------------|
-| Video/GIF | Playback reaches 85% of duration |
+| Video | Playback reaches 50% of duration |
 | Image | After 2 seconds in detail view |
 | Text | After 2 seconds in detail view |
 | Gallery | After 2 seconds open OR any interaction within |
-| YouTube | When user taps "Open in YouTube" (not on view of card) |
-| Link/Fallback | After 2 seconds in detail view |
+| YouTube | When user taps "Open in YouTube" (not on card view) |
+| Link / Fallback | After 2 seconds in detail view |
 | Media Error | Never marked watched |
 
-**Visual Treatment - Unwatched:**
-- Full brightness type icon, thumbnail, and title
-- Stronger title contrast
-- Small bright blue dot indicator on far right of card
-- Card background at normal subtle tint
+Visual treatment (unwatched vs. watched) unchanged.
 
-**Visual Treatment - Watched:**
-- Small checkmark replacing the blue dot
-- Dimmed thumbnail (~50% opacity)
-- Reduced title contrast (muted color)
-- Card background slightly more transparent
-- Still fully attractive and easily selectable
+---
 
-The visual distinction must be clear from TV viewing distance (6-10 feet).
+## Queue Removal Flow
+
+**Trigger:** Long-press on a list row, select "Remove from Queue."
+
+**Behavior:**
+1. Item removed from in-memory `posts` array. UI updates immediately (animated fade-out).
+2. `queue.json` is re-read from iCloud, item stripped by matching `id` + `source`, written back atomically.
+3. Cached `Post` snapshot removed from SwiftData.
+4. No undo in v1.
+
+**Concurrency note:** Between the read and write of `queue.json`, another device could write. This is the same race condition as the Shortcut writes. Accepted risk.
 
 ---
 
 ## NSFW Handling
 
-- Controlled via Settings.bundle (tvOS system Settings > Apps > Upvote TV)
-- **Default on first launch: NSFW enabled** (show NSFW posts normally)
-- When NSFW is disabled: hide NSFW posts completely from the gallery and detail flow
-- Filtering uses the `over_18` flag from Reddit API responses
+- Controlled via Settings.bundle (tvOS system Settings > Apps > Upvote TV).
+- Default on first launch: NSFW enabled.
+- Filtering applies to Reddit items only (uses `over_18` from Reddit metadata). YouTube oEmbed does not expose an NSFW flag, so YouTube items are never filtered.
+- When NSFW is disabled, matching items are hidden from the queue and detail flow.
 
 ---
 
 ## Startup and Refresh Behavior
 
-1. App launch shows the shell immediately with skeleton rows
-2. Auth service attempts token refresh
-3. If auth succeeds, fetch upvoted posts from Reddit
-4. Normalize responses into Post models
-5. Merge with existing watched state
-6. Update cached post snapshot in SwiftData
-7. Replace skeleton with real content
-8. If auth or fetch fails, load cached posts and show stale-data banner
+1. App launch shows the shell immediately with skeleton rows.
+2. Fetch `queue.json` from the GitHub Gist via `GistQueueClient.fetch()`.
+3. For each queue item, check for a cached `Post` with `resolvedAt` < 24 hours. Use cache if available.
+4. Render list immediately with whatever cached data is available. Items without cache render as skeleton placeholders.
+5. In the background, fetch fresh metadata for all items with stale or missing cache, up to 10 concurrent requests.
+6. As each fetch completes, update the corresponding row in place.
+7. If fetch fails, keep any existing cached data and add a stale badge.
+8. If the gist responds but contains no items, show the Empty Queue state and re-fetch every 10 seconds.
+9. If `Secrets.plist` is missing/empty or the gist endpoint returns 401/403/404/network-error, show the Connection Error state.
 
-**Caching:** The app persists the last successful post snapshot locally. This means the app is usable even after auth failures or network issues - the content just may not be current.
-
-**No manual refresh UI in v1.** To refresh, close and reopen the app.
+No manual refresh in v1.
 
 ---
 
-## Visual Design Direction
-
-**The app should feel:** Minimal. Premium. Calm. Dark-first. Spacious. Apple TV native. Content-first.
-
-**The app should NOT feel:** Reddit-branded. Cluttered. Utilitarian. Debug-like. Busy. Like a generic API client.
-
-**Guidance:**
-- Clean, large typography optimized for TV distance
-- Generous whitespace and padding
-- Minimal on-screen controls
-- Elegant focus highlight treatments using tvOS native focus engine
-- Dark background, high-contrast text
-- Subtle animations for focus changes and transitions
-- No Reddit logos, Reddit colors, or Reddit branding anywhere
+## Visual Design Direction (unchanged)
 
 ---
 
 ## tvOS-Specific Technical Notes
 
-**Memory:** Apple TV has limited memory compared to iOS devices. Prefer Reddit's preview images at resolutions appropriate for 1080p/4K display rather than loading full-resolution originals. Avoid holding multiple full-resolution images in memory simultaneously.
+**iCloud Container Access:** tvOS accesses iCloud through the app's ubiquity container, addressed via `NSFileManager.default.url(forUbiquityContainerIdentifier:)`. The document picker is not available on tvOS, so all file access is programmatic. The Shortcut on iPhone writes to the same container.
 
-**Focus Engine:** Use tvOS's built-in focus system rather than inventing custom navigation. The focus engine handles the remote's swipe-to-move and click-to-select behavior automatically when using standard SwiftUI views.
+**Memory:** Unchanged from v2. Prefer preview-resolution images over full-resolution originals.
 
-**AVKit:** Use AVKit for all video playback. It provides standard tvOS transport controls (play, pause, scrub) automatically. For HLS streams (which Reddit's v.redd.it provides), AVKit handles adaptive bitrate streaming natively.
+**Focus Engine:** Unchanged from v2.
 
-**Settings.bundle:** This is the standard tvOS mechanism for app preferences that appear in the system Settings app. It requires a `Settings.bundle` directory in the app bundle with a `Root.plist` defining the toggle.
+**AVKit:** Unchanged from v2. HLS URLs from Reddit v.redd.it work natively.
+
+**Settings.bundle:** Unchanged from v2.
+
+**Network:** All network access is unauthenticated. No OAuth tokens, no headers beyond standard User-Agent.
 
 ---
 
 ## Performance Expectations
 
-- App shell visible within 1 second of launch
-- Focus movement between list items feels instant (no visible lag)
-- Right preview pane updates within ~200ms of focus change
-- Returning from detail view to gallery restores exact position
-- Video playback starts within 2-3 seconds of selecting a video post
-- Watched state persists immediately (no delay or "saving" indicator)
+- App shell visible within 1 second of launch.
+- Cached items render within 500ms of shell appearance.
+- Uncached items render within 3 seconds (allowing for network fetch).
+- iCloud sync latency from iPhone share to Apple TV visibility: typically 5-30 seconds, depending on network and iCloud conditions. Not under the app's control.
+- Focus movement between list items feels instant.
+- Video playback starts within 2-3 seconds of selection.
+- Watched state persists immediately.
 
 ---
 
@@ -597,95 +547,114 @@ The visual distinction must be clear from TV viewing distance (6-10 feet).
 
 The MVP is complete when all of the following are true:
 
-1. App launches into a polished full-width soft card list with skeleton loading state
-2. App fetches 100 most recent upvoted Reddit posts using developer-configured auth
-3. Auth token rotation is handled correctly (new refresh tokens are persisted)
-4. List shows unwatched items first, watched items below, newest first within each group
-5. Default focus goes to top item, or "You're Caught Up" row when all posts are watched
-6. Each card row shows colored type icon, title, metadata, optional thumbnail, and watched indicator
-7. Selecting a row opens a full-screen detail view for that single post
-8. YouTube posts show a preview card with "Open in YouTube" button
-9. Video posts autoplay with audio, show Replay at end, mark watched at 85%
-10. Image posts display full-screen with no UI overlay, mark watched after 2s
-11. Text posts show scrollable title + body, mark watched after 2s
-12. Gallery posts support in-post image navigation with position indicator
-13. Link/unsupported posts show a polished fallback info card
-14. Back/Menu always returns to the list at the same scroll position and focused row
-15. Watched state persists across app launches
-16. Long press on a row exposes Mark as Watched/Unwatched context menu
-17. App refreshes on launch, uses cached content if refresh fails
-18. Stale-data banner appears when showing cached content after a failed refresh
-19. NSFW visibility is controlled through tvOS system Settings
-20. Missing/invalid auth shows a clean setup-required screen
-21. Media load failures show a clean error state per-post
-22. Debug builds expose auth and API diagnostics without affecting normal UX
-23. Mock content provider works fully, enabling development without Reddit access
-24. App feels minimal, premium, and Apple TV native
+1. App launches into a polished full-width soft card list with skeleton loading state.
+2. App reads `queue.json` from the iCloud ubiquity container.
+3. For each queue item, the app resolves metadata from `reddit.com/comments/{id}.json` or `youtube.com/oembed`.
+4. Resolved metadata is cached in SwiftData with a 24-hour freshness window.
+5. List sorts unwatched first, watched below, newest-by-sharedAt first within each group.
+6. Default focus goes to the top item, or the "You're Caught Up" row if all items are watched.
+7. Each card row shows a colored type icon, title, metadata, optional thumbnail, and watched indicator.
+8. Selecting a row opens a full-screen detail view appropriate to the post type.
+9. YouTube items (both queue-added and Reddit-linked) show a preview card with an "Open in YouTube" button.
+10. Video posts autoplay with audio, show Replay at end, mark watched at 85% playback.
+11. Image posts display full-screen with no overlay, mark watched after 2 seconds.
+12. Text posts show scrollable title plus body, mark watched after 2 seconds.
+13. Gallery posts support in-post image navigation with a position indicator.
+14. Link and unsupported posts show a polished fallback information card.
+15. Back / Menu always returns to the queue list at the same scroll position and focused row.
+16. Watched state persists across app launches.
+17. Long-press on a list row shows context menu with Mark Watched/Unwatched and Remove from Queue options.
+18. Remove from Queue rewrites `queue.json` atomically and updates UI immediately.
+19. Items with failed metadata refresh display a stale badge but remain usable with cached data.
+20. Missing queue file shows the Empty Queue state and polls for the file every 10 seconds.
+21. iCloud container inaccessible shows the Setup Required state.
+22. Per-post media load failures show the Media Error state.
+23. NSFW visibility is controlled through tvOS system Settings and applies only to Reddit items.
+24. Debug builds expose metadata resolution diagnostics without affecting normal UX.
+25. MockContentProvider works fully, enabling development without iCloud setup.
+26. The iOS Shortcut validates domain whitelist, deduplicates by id+source, writes `queue.json` atomically, and shows user feedback on success and failure.
+27. Two iPhones with the Shortcut installed can contribute to the same queue.
+28. App feels minimal, premium, and Apple TV native.
 
 ---
 
 ## Implementation Phases
 
-This section provides recommended build order for Claude Code.
-
 ### Phase 1: Project Setup and Mock Data
 
-- Create tvOS Xcode project with SwiftUI
-- Define all data models (Post, PostType, GalleryItem, WatchedState, etc.)
-- Build MockContentProvider with realistic sample data covering all post types
-- Set up SwiftData persistence for watched state and cached posts
-- Create Settings.bundle for NSFW toggle
-- Add Secrets.plist to .gitignore template
+- Create tvOS Xcode project with SwiftUI.
+- Define all data models: Post, PostType, GalleryItem, WatchedState, CachedPost, QueueItem, QueueSource.
+- Build MockContentProvider with realistic sample data covering video, image, gallery, text, YouTube (both direct and Reddit-linked), and link types.
+- Set up SwiftData persistence for watched state and cached posts.
+- Create Settings.bundle for NSFW toggle.
+- Add `.gitignore` excluding any local config files.
 
-### Phase 2: Gallery Screen with Mock Data
+### Phase 2: Browse Screen with Mock Data
 
-- Build the two-pane gallery layout
-- Implement left list with focus handling
-- Implement passive right preview pane
-- Implement sort logic (unwatched first, newest first)
-- Implement watched/unwatched visual treatment
-- Build "You're Caught Up" synthetic row
-- Build skeleton loading state
-- Build long-press context menu
+- Build the single-column soft-card list layout.
+- Implement focus handling and default-focus logic.
+- Implement sort logic (unwatched first, newest-by-sharedAt first within each group).
+- Implement watched/unwatched visual treatment.
+- Build the "You're Caught Up" synthetic row.
+- Build the Empty Queue state.
+- Build the skeleton loading state.
+- Build the long-press context menu including Remove from Queue (operating on mock data for now).
 
 ### Phase 3: Detail Views with Mock Data
 
-- Video detail view (using a sample HLS stream for testing)
-- Image detail view
-- Text detail view
-- Gallery detail view with in-post navigation
-- Link/fallback detail view
-- Media error state
-- Watched-state auto-marking logic for each type
-- Back navigation preserving gallery position
+- Video detail view with AVKit (use a sample HLS stream).
+- Image detail view.
+- Text detail view.
+- Gallery detail view with in-post navigation.
+- YouTube detail view with Open in YouTube deep link.
+- Link / fallback detail view.
+- Media error state.
+- Watched-state auto-marking logic for each type.
+- Back navigation preserving list position.
 
-### Phase 4: Reddit Integration
+### Phase 4: Queue Integration
 
-- Build auth service with token rotation and persistence
-- Build Reddit API client for `/user/{username}/upvoted`
-- Build response normalizer handling all post type variations
-- Handle v.redd.it HLS URL extraction
-- Handle gallery data structure (gallery_data + media_metadata)
-- Handle image preview resolution selection
-- Wire RedditContentProvider to UI
-- Build auth error / setup-required screen
-- Build stale-data banner
-- Build refresh-on-launch flow
+- Configure iCloud capability and ubiquity container in Xcode.
+- Build QueueFileReader and QueueFileWriter for `queue.json`.
+- Build RedditMetadataResolver using `reddit.com/comments/{id}.json`.
+- Build YouTubeMetadataResolver using `youtube.com/oembed`.
+- Build MetadataCache in SwiftData with 24-hour freshness.
+- Build QueueContentProvider that orchestrates queue read + per-item resolution + caching.
+- Wire QueueContentProvider to UI.
+- Build the Setup Required state.
+- Build the stale-metadata badge.
+- Build refresh-on-launch flow.
+- Test Reddit post-type variations (video, image, gallery, text, YouTube-linked, link).
 
-### Phase 5: Polish and Edge Cases
+### Phase 5: iOS Shortcut
 
-- Rate limit handling (429 retry)
-- NSFW filtering based on Settings.bundle preference
-- Debug diagnostic overlay for dev builds
-- Performance optimization (image sizing, memory)
-- Visual polish pass (typography, spacing, focus animations)
-- Test all error states and fallback paths
+- Build the Shortcut using iOS Shortcuts app.
+- Implement domain whitelist and normalization.
+- Implement JSON read, insert with dedup, atomic write.
+- Implement user-facing success and error toasts.
+- Distribute via iCloud share link (or export as `.shortcut` file).
+- Install on both phones, verify shared queue behavior.
 
-### Phase 6: Auth Setup Tooling
+### Phase 6: Polish and Edge Cases
 
-- Generate a helper script or CLI tool that walks through the Reddit OAuth flow on a Mac
-- Script opens browser for authorization, captures the callback, exchanges for tokens
-- Outputs a ready-to-use Secrets.plist file
+- NSFW filtering tied to Settings.bundle toggle.
+- Debug diagnostic overlay for metadata resolution in dev builds.
+- Performance tuning (image sizing, concurrent fetch limits, cache eviction).
+- Visual polish pass (typography, spacing, focus animations).
+- Verify all error states and fallback paths.
+- Test two-phone contribution scenario.
+
+### Phase 7: Reddit API Provider (Optional, Deferred)
+
+If Reddit API access is approved under the Responsible Builder Policy:
+
+- Build AuthService with token rotation and persistence.
+- Build RedditAPIClient for the `/user/{username}/upvoted` endpoint.
+- Implement RedditContentProvider.
+- Decide: replace QueueContentProvider, run alongside it as a supplement, or keep both and expose a settings toggle.
+- Generate OAuth setup helper script.
+
+This phase is not required for v1 and has no fixed timeline. If Reddit never approves access, v1 is still complete and usable.
 
 ---
 
@@ -693,10 +662,12 @@ This section provides recommended build order for Claude Code.
 
 | Question | Owner | Blocking? |
 |----------|-------|-----------|
-| Does Reddit's `limit=100` parameter work reliably on the upvoted endpoint, or will we need pagination? | Engineering (test during Phase 4) | No |
-| What resolution should preview images target for optimal Apple TV display without excessive memory use? | Engineering (test during Phase 5) | No |
-| Should watched state for posts that drop out of the top 100 be pruned, or kept indefinitely? | Product decision (Justin) | No |
-| Is the `hls_url` field reliably present on v.redd.it posts, or do some only have `dash_url`? | Engineering (test during Phase 4) | No |
+| Will the tvOS app reliably see files written by a Shortcut on iPhone within seconds, or are there delays where the user sees an empty queue even after sharing? | Engineering (test Phase 4/5) | Yes |
+| Does `reddit.com/comments/{id}.json` remain reliably public in 2026, or has the Responsible Builder Policy creep affected web endpoints? | Engineering (test early in Phase 4) | Possibly |
+| Does YouTube oEmbed work for all variants (standard videos, Shorts, age-restricted, live)? | Engineering (test Phase 4) | No |
+| How should Settings.bundle-disabled NSFW interact with YouTube items that don't have an NSFW flag? Keep them visible (current plan) or hide YouTube entirely when NSFW is off? | Product (Justin) | No |
+| Should the queue auto-prune items older than N days or watched more than N days ago, or grow forever until manually removed? | Product (Justin) | No |
+| If both phones write the queue at the same moment, is the rare dropped-share acceptable, or does it justify building a Share Extension earlier? | Product (Justin) | No |
 
 ---
 
@@ -704,12 +675,13 @@ This section provides recommended build order for Claude Code.
 
 Intentionally deferred but worth designing around:
 
-- In-app OAuth flow using device code grant (eliminates manual token setup)
-- App Store submission with proper onboarding
-- Companion iPhone app for easier auth and settings
-- Custom media caching for offline viewing
-- Next/previous post navigation from detail view
-- Autoplay/playlist mode for video posts
-- Sync watched state across devices
-- Multiple user profiles
-- Search or filter within upvoted posts
+- **Native iPhone Share Extension.** Replaces the Shortcut with a proper app if the Shortcut proves too slow or unreliable. Unlocks richer feedback UI and eliminates the multi-phone race condition.
+- **CloudKit migration.** If iCloud Drive JSON becomes insufficient (multi-user conflicts, atomicity, schema evolution), migrate to CloudKit.
+- **Reddit API as supplemental source.** Per Phase 7 above.
+- **Additional source support.** Twitter/X video, Instagram Reels, TikTok, Bluesky, etc. Each requires its own metadata resolver and domain whitelist entry.
+- **Watched-state sync.** CloudKit-backed watched state, so a post watched in the living room is also marked watched in the bedroom Apple TV.
+- **Search or filter within queue.**
+- **Manual refresh gesture.**
+- **Autoplay / playlist mode for videos.**
+- **Per-person queues** (one queue for Justin, one for wife, one shared).
+- **Scheduled automation.** A companion scheduled task that auto-curates certain sources (e.g., weekly top of a subreddit) into the queue.

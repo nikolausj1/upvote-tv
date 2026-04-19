@@ -3,8 +3,8 @@ import Foundation
 struct Post: Identifiable, Hashable {
     let id: String
     let title: String
-    let subreddit: String
-    let author: String
+    let subreddit: String?
+    let author: String?
     let createdAt: Date
     let postType: PostType
 
@@ -21,4 +21,7 @@ struct Post: Identifiable, Hashable {
 
     let isNSFW: Bool
     let score: Int?
+
+    let sharedAt: Date?
+    let resolvedAt: Date?
 }

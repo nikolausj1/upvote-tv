@@ -6,13 +6,25 @@ struct ContentView: View {
 
     var body: some View {
         BrowseListView(
-            provider: MockContentProvider(),
+            provider: QueueContentProvider(modelContext: modelContext),
             watchedManager: WatchedStateManager(modelContext: modelContext)
         )
     }
 }
 
 #Preview {
-    ContentView()
-        .modelContainer(for: [WatchedState.self, CachedPost.self, AuthState.self], inMemory: true)
+    // Previews use the mock provider; the real app uses QueueContentProvider.
+    PreviewHarness()
+        .modelContainer(for: [WatchedState.self, CachedPost.self], inMemory: true)
+}
+
+private struct PreviewHarness: View {
+    @Environment(\.modelContext) private var modelContext
+
+    var body: some View {
+        BrowseListView(
+            provider: MockContentProvider(),
+            watchedManager: WatchedStateManager(modelContext: modelContext)
+        )
+    }
 }

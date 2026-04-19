@@ -43,25 +43,62 @@ struct PostCardRow: View {
                     .foregroundStyle(.tertiary)
             }
 
-            Text("r/\(post.subreddit)")
+            Text(sourceLabel)
                 .foregroundStyle(.tertiary)
 
             Text("·")
                 .foregroundStyle(.tertiary)
 
-            Text(post.createdAt.relativeDescription)
+            Text((post.sharedAt ?? post.createdAt).relativeDescription)
                 .foregroundStyle(.tertiary)
 
             if let domain = post.domain,
-               (post.postType == .link || post.postType == .youtube || post.postType == .unsupported) {
+               (post.postType == .link || post.postType == .unsupported) {
                 Text("·")
                     .foregroundStyle(.tertiary)
                 Text(domain)
                     .foregroundStyle(.tertiary)
             }
+
+            if isStale {
+                staleBadge
+            }
         }
         .font(.caption2)
         .lineLimit(1)
+    }
+
+    private var isStale: Bool {
+        guard let resolvedAt = post.resolvedAt else {
+            // Never successfully resolved — fallback cards are effectively stale.
+            return post.postType == .unsupported && post.score == nil
+        }
+        return Date().timeIntervalSince(resolvedAt) > AppConfig.cacheTTL
+    }
+
+    private var staleBadge: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "clock.arrow.circlepath")
+            Text("Stale")
+        }
+        .font(.system(size: 14, weight: .medium))
+        .padding(.horizontal, 6)
+        .padding(.vertical, 2)
+        .background(Color.orange.opacity(0.18), in: Capsule())
+        .foregroundStyle(.orange)
+    }
+
+    private var sourceLabel: String {
+        if let subreddit = post.subreddit, !subreddit.isEmpty {
+            return "r/\(subreddit)"
+        }
+        if post.postType == .youtube {
+            if let author = post.author, !author.isEmpty {
+                return "YouTube · \(author)"
+            }
+            return "YouTube"
+        }
+        return post.domain ?? ""
     }
 
     // MARK: - Thumbnail

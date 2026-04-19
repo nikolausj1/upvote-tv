@@ -86,7 +86,7 @@ struct VideoDetailView: View {
             loadError = true
         }
 
-        // Track playback progress for 85% watched marking
+        // Track playback progress for 50% watched marking
         let interval = CMTime(seconds: 1, preferredTimescale: 1)
         timeObserver = avPlayer.addPeriodicTimeObserver(forInterval: interval, queue: .main) { time in
             guard !hasMarkedWatched,
@@ -95,7 +95,7 @@ struct VideoDetailView: View {
                   duration.seconds > 0 else { return }
 
             let progress = time.seconds / duration.seconds
-            if progress >= 0.85 {
+            if progress >= 0.50 {
                 hasMarkedWatched = true
                 onMarkWatched()
             }

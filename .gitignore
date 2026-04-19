@@ -1,4 +1,4 @@
-# Reddit API credentials - never commit
+# GitHub Gist token + gist ID — never commit
 Secrets.plist
 
 # Xcode
@@ -13,3 +13,6 @@ DerivedData/
 # SwiftPM
 .swiftpm/
 xcuserdata/
+
+# Claude / local scratch space
+inbox/

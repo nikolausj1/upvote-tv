@@ -50,10 +50,15 @@ struct YouTubeDetailView: View {
                         .fontWeight(.semibold)
                         .foregroundStyle(.red)
 
-                    Text("r/\(post.subreddit)")
-                        .foregroundStyle(.secondary)
+                    if let subreddit = post.subreddit, !subreddit.isEmpty {
+                        Text("r/\(subreddit)")
+                            .foregroundStyle(.secondary)
+                    } else if let author = post.author, !author.isEmpty {
+                        Text(author)
+                            .foregroundStyle(.secondary)
+                    }
 
-                    Text(post.createdAt.relativeDescription)
+                    Text((post.sharedAt ?? post.createdAt).relativeDescription)
                         .foregroundStyle(.tertiary)
 
                     if let score = post.score {
@@ -109,14 +114,19 @@ struct YouTubeDetailView: View {
     private func openInYouTube() {
         guard let outboundURL = post.outboundURL else { return }
 
-        // Extract video ID and try the YouTube app scheme first
+        // Known gotcha on tvOS 18.x: the YouTube app ignores both
+        //   youtube://watch?v=ID   (iOS-style query format)
+        //   youtube://<ID>         (short form, video id as path)
+        // Both launch the app but drop the deep-link, leaving the user on
+        // whatever screen YouTube was last on. The form that actually
+        // navigates is the full host+path variant below. If Google breaks
+        // this in a future update, re-test all three formats.
         if let videoID = extractVideoID(from: outboundURL),
-           let appURL = URL(string: "youtube://watch?v=\(videoID)") {
+           let appURL = URL(string: "youtube://www.youtube.com/watch?v=\(videoID)") {
             openURL(appURL) { accepted in
                 if accepted {
                     onMarkWatched()
                 } else {
-                    // Fall back to HTTPS URL
                     openHTTPS(outboundURL)
                 }
             }

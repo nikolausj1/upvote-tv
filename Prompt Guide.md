@@ -1,377 +1,358 @@
 ---
 title: "Upvote TV - Claude Code Prompt Guide"
 created: 2026-04-10
-modified: 2026-04-10
-version: 2.0
-author: Claude Opus 4.6 (claude-opus-4-6)
+modified: 2026-04-17
+version: 3.0
+author: Claude Opus 4.7 (claude-opus-4-7)
 tags:
 ---
 
 # Upvote TV - Claude Code Prompt Guide
 
-A reference of prompts to use when building Upvote TV with Claude Code. Copy and paste these as you work through each phase. You don't need to use them word-for-word - adjust based on what's happening in your project at the time.
+A reference of prompts to use when building Upvote TV with Claude Code. Copy and paste these as you work through each phase. You don't need to use them word-for-word, adjust based on what's happening in your project at the time.
+
+---
+
+## Current Project Status (as of v3.0 of this guide)
+
+Phases 1-3 and parts of Phase 5 were previously completed against the v2 PRD, which assumed Reddit API as the data source. The strategy changed in v3 of the PRD: the app now reads from an iCloud-backed queue file populated by an iPhone Shortcut. Reddit API integration is deferred indefinitely.
+
+| Phase | Description | Status as of 2026-04-17 |
+|-------|-------------|--------|
+| 1 | Data models, providers, SwiftData setup | Done (v2 models, needs migration) |
+| 2 | Browse list UI with mock data | Done |
+| 3 | All detail views (video, image, text, gallery, YouTube, link) | Done |
+| 4 (v2 Reddit) | Reddit API integration | Abandoned (Reddit API approval never granted) |
+| 4 (v3 new) | iCloud queue integration + metadata resolvers | Not started |
+| 5 (v2 polish) | NSFW toggle, debug overlay, memory optimization | Done (mock-data only) |
+| 5 (v3 new) | iOS Shortcut | Not started |
+| 6 | Polish and edge cases for queue model | Not started |
+| 7 | Reddit API (deferred, optional) | Not started |
+
+**The next prompt to run is the Migration prompt below, followed by Phase 4 (v3).**
 
 ---
 
 ## Before You Start
 
-When you first open the Upvote TV folder in Claude Code, it will automatically read the CLAUDE.md file. You don't need to tell it about the project from scratch - it already knows the context. Your first message should orient it to the PRD and the current state of the project.
+When you open the Upvote TV folder in Claude Code, it will automatically read the CLAUDE.md file. CLAUDE.md has been updated to reflect v3, but the actual codebase still contains v2 Reddit-specific files. Your first message should orient it to both the updated PRD and the cleanup work that needs to happen.
 
 ---
 
-## UI Redesign: Two-Pane to Single-Column Card List
+## Migration: v2 to v3 Architecture
 
-Use this prompt NOW. The PRD has been updated from a two-pane split layout to a single-column full-width card list. Since you've already built Phases 1-3 with the old layout, this prompt tells Claude Code to rebuild the browse screen to match the new design.
+Run this FIRST, before any Phase 4 work. The codebase was built against v2's Reddit-API assumptions. This migration updates data models, removes Reddit-specific files that no longer apply, and adds the new Queue types needed for v3.
 
-### Redesign the browse screen
-
-```
-I've made a significant design change to the app. Please re-read 
-PRD.md and CLAUDE.md - both have been updated.
-
-The main change: we're replacing the two-pane gallery layout with a 
-single-column full-width card list. There is no longer a side preview 
-panel. Every post type opens full-screen when selected.
-
-Please rebuild the main browse screen (Screen A in the PRD) as follows:
-
-1. Remove the two-pane split layout entirely. No right preview pane.
-
-2. Build a full-width scrollable list where each row is a soft card:
-   - Subtle background fill (~2% white) with faint border (~3% white)
-   - Focused cards brighten with stronger border and subtle scale/lift
-   - ~8pt spacing between cards
-
-3. Each card row contains (left to right):
-   - Type icon: SF Symbol in a ~40x40pt rounded square with colored 
-     tint background:
-     * Video: play.rectangle.fill (red)
-     * Image: photo (blue)  
-     * Gallery: square.stack (purple)
-     * Text: doc.text (green)
-     * YouTube: play.rectangle.fill (red)
-     * Link: arrow.up.right (amber)
-   - Title (large, up to 2 lines) + metadata below (subreddit in 
-     accent color, post age, domain for link/YouTube posts)
-   - Thumbnail on the right (~96x64pt, rounded) ONLY for visual 
-     posts (image, video, gallery, YouTube). No thumbnail for text 
-     and link posts.
-   - Unwatched indicator: blue dot. Watched: subtle checkmark.
-
-4. Keep everything else working:
-   - Sort order (unwatched first, watched below, newest first)
-   - "New" and "Watched" section headers
-   - "You're Caught Up" row
-   - Long-press context menu
-   - Skeleton loading state
-   - All detail views still open full-screen as before
-   - Back/Menu returns to list at same position
-
-5. Watched cards should be visually muted: dimmer thumbnail, 
-   reduced title contrast, more transparent card background.
-
-The title is the most important element in every row. It must be 
-easily readable from 6-10 feet away on a TV.
-```
-
-### If the cards don't look right
+### Migrate existing code to v3 architecture
 
 ```
-The card rows need adjustment:
-- [describe what's wrong, e.g., "the type icons are too big/small",
-  "there's not enough padding inside the cards", "the thumbnails 
-  are taking too much space", "the focused state isn't obvious 
-  enough", etc.]
+The PRD has changed significantly. Please re-read PRD.md (now v3.0) and 
+CLAUDE.md. The core shift: we're no longer planning to use the Reddit 
+API as the primary data source. Instead, content comes from an 
+iCloud-backed queue file populated by an iPhone Shortcut.
+
+Please do the following migration work. Do NOT build Phase 4 yet - just 
+clean up the existing code so it matches the new architecture.
+
+1. Add new data models:
+   - QueueItem (id, url, source, sharedAt)
+   - QueueSource enum (.reddit, .youtube)
+
+2. Update the Post model:
+   - Add optional sharedAt: Date?
+   - Make subreddit and author optional (YouTube items don't have them)
+   - Add resolvedAt: Date? for cache freshness tracking
+
+3. Update CachedPost (SwiftData) to include resolvedAt.
+
+4. Remove the AuthState SwiftData model entirely. Also remove any 
+   migration code that references it.
+
+5. Move these files to a /Deferred folder at the project root (keep the 
+   code around for Phase 7 but remove from the active build target):
+   - Services/AuthService.swift
+   - Services/RedditAPIClient.swift
+   - Services/RedditResponseParser.swift
+   - Providers/RedditContentProvider.swift
+   - Tools/reddit-auth-setup.sh
+   
+   These files should no longer compile into the app. Either remove 
+   them from the Xcode target membership or delete them (I'd prefer 
+   moving to /Deferred so we can bring them back for Phase 7 if Reddit 
+   approval ever comes through).
+
+6. Delete App/Secrets.plist if it exists locally. Update .gitignore if 
+   needed to keep it excluded for Phase 7.
+
+7. Update MockContentProvider to include:
+   - Direct YouTube queue items (not just Reddit posts that link to 
+     YouTube). Examples: a Short, a full-length video, a live stream.
+   - All mock items should have a sharedAt timestamp populated.
+   - Sort order in mock data should be newest-sharedAt first.
+
+8. Update PostCardRow and the list sort logic to use sharedAt (falling 
+   back to createdAt) for "newest first" ordering.
+
+9. Update any UI that displays "subreddit" to handle the YouTube case 
+   gracefully - for YouTube items, show the channel name (author) and 
+   "YouTube" as the source label instead.
+
+10. Confirm the app still builds and runs against mock data after these 
+    changes. The browse list, all detail views, and watched state 
+    should all still work.
+
+Do not add QueueContentProvider, iCloud integration, or the metadata 
+resolvers yet - that's Phase 4 work, which comes next.
 ```
 
----
-
-## Phase 1: Project Setup and Mock Data
-
-### Kick off Phase 1
+### Verify the migration
 
 ```
-Read PRD.md. The Xcode project has already been created (SwiftUI, Swift, 
-SwiftData). Let's start with Phase 1. Please:
-
-1. Define all the data models from the PRD: Post, PostType, GalleryItem, 
-   WatchedState, CachedPost, and AuthState
-2. Build a MockContentProvider with realistic sample data covering every 
-   post type (video, image, text, gallery, link, unsupported)
-3. Create the ContentProvider protocol that both MockContentProvider and 
-   the future RedditContentProvider will conform to
-4. Set up the SwiftData model container for WatchedState and CachedPost
-5. Create a Settings.bundle with the NSFW toggle
-6. Make sure Secrets.plist is in .gitignore
-```
-
-### If you get build errors
-
-```
-I'm getting a build error. Here's what Xcode says: [paste the error]. 
-Can you fix this?
-```
-
-### Verify Phase 1
-
-```
-Can you make sure the project builds for the tvOS Simulator? Walk me 
-through how to run it.
+Can you walk me through what changed in the migration? I want to confirm:
+- What files were moved to /Deferred
+- What new models exist
+- That the app still builds and runs with mock data
+- That the browse screen and all detail views still work
 ```
 
 ---
 
-## Phase 2: Browse List Screen
+## Phase 4 (v3): iCloud Queue Integration
 
-### Kick off Phase 2
-
-```
-Let's build Phase 2 - the browse list screen. Using the mock data from 
-Phase 1, build a full-width single-column list with soft card rows.
-
-Refer to Screen A in PRD.md for the full spec, but here's the summary:
-
-Each row is a subtle card. From left to right:
-1. Colored SF Symbol type icon in a rounded square (use the specific 
-   symbols listed in CLAUDE.md - play.rectangle.fill for video, photo 
-   for image, square.stack for gallery, doc.text for text, 
-   arrow.up.right for link). Each icon container gets a tinted 
-   background matching the content type.
-2. Title (large, dominant, up to 2 lines) with subreddit, age, and 
-   domain below
-3. Small thumbnail on the right ONLY for posts with visual content 
-   (image, video, gallery, YouTube). Skip it for text and link posts.
-4. Unwatched dot (blue) or watched checkmark on the far right
-
-Cards have a subtle background fill and border. Focused card brightens 
-with a stronger border. Watched cards are more muted.
-
-Also build:
-- Sort order: unwatched first ("New" section), watched below 
-  ("Watched" section), newest first in each group
-- "You're Caught Up" synthetic row when all posts are watched
-- Skeleton loading state for app startup
-- Long-press context menu with Mark as Watched / Mark as Unwatched
-- Focus behavior using tvOS native focus engine
-
-There is NO two-pane layout or side preview panel. Selecting a row 
-will open full-screen (we'll build that in Phase 3).
-```
-
-### Adjusting the visual design
-
-```
-The list looks good but I'd like some changes:
-- [describe what you want changed, e.g., "the type icons are too small", 
-  "I want more space between cards", "the title text is hard to read", 
-  "the thumbnail should be bigger/smaller", etc.]
-```
-
-### If focus behavior isn't working right
-
-```
-The focus behavior isn't feeling right. When I swipe on the remote, 
-[describe what happens]. Can you check the tvOS focus handling on the 
-card rows?
-```
-
-### Testing the "Caught Up" state
-
-```
-Can you modify the mock data so all posts are marked as watched? I want 
-to test the "You're Caught Up" empty state.
-```
-
----
-
-## Phase 3: Detail Views
-
-### Kick off Phase 3
-
-```
-Let's build Phase 3 - all the detail views. Using mock data, build each 
-detail view type:
-
-1. Video detail - autoplay, play/pause on center click, Replay button 
-   at end, mark watched at 85%
-2. Image detail - full-screen image only, no overlays, mark watched 
-   after 2 seconds
-3. Text detail - title + scrollable body text, mark watched after 2 seconds
-4. Gallery detail - in-post image navigation with left/right swipe, 
-   position indicator (e.g., "2 / 5"), mark watched after 2 seconds
-5. Link/fallback detail - polished info card with title, domain, excerpt
-6. Media error state - clean "Media could not be loaded" message
-
-For ALL detail views: Back/Menu must return to the gallery at the same 
-scroll position and focused row.
-
-Use a sample HLS video URL for testing video playback. Refer to Screens 
-B through J in PRD.md.
-```
-
-### If video playback has issues
-
-```
-Video playback isn't working correctly. [Describe the issue - no audio, 
-won't play, no controls, etc.]. The PRD notes that v.redd.it videos use 
-HLS streaming. Can you check the AVKit setup?
-```
-
-### Tweaking the text detail view
-
-```
-The text post detail view needs adjustment. The text is [too small / too 
-close to the edges / not scrolling properly / etc.]. Remember this needs 
-to be readable from TV distance (6-10 feet).
-```
-
-### Testing watched state persistence
-
-```
-Can you verify that watched state actually persists? I want to:
-1. Open a post so it gets marked as watched
-2. Go back to the gallery and confirm it shows the watched indicator
-3. Close and reopen the app and confirm it's still marked as watched
-```
-
----
-
-## Phase 3.5: Add YouTube Post Support
-
-You've finished Phase 3, but we've since updated the PRD to handle YouTube posts specially. YouTube videos can't be played inside a tvOS app (no web view, no embeddable player), so they get their own detail view with an "Open in YouTube" button. Run this before starting Phase 4.
-
-### Add YouTube support
-
-```
-I've updated PRD.md since we finished Phase 3. There's a new post type 
-and detail view for YouTube links. Please read the updated PRD.md and 
-then:
-
-1. Add a "youtube" case to the PostType enum
-2. Add a YouTubeDetailView (Screen F-1 in the PRD) that shows:
-   - Large thumbnail/preview image
-   - Title
-   - "YouTube" badge
-   - Subreddit and post age
-   - A prominent "Open in YouTube" button
-3. The button should try to open the YouTube app via URL scheme 
-   (youtube://watch?v={videoID}), falling back to the HTTPS URL. If 
-   neither works, show a brief "YouTube app not found" message.
-4. Mark watched ONLY when the user taps "Open in YouTube" - not on a 
-   timer like other detail views
-5. Add YouTube sample posts to the MockContentProvider so we can test 
-   this in the Simulator
-6. Wire up the gallery so YouTube-type posts route to YouTubeDetailView
-7. The gallery row should show a "YouTube" post type badge
-
-Back/Menu returns to the gallery at the same position as always.
-```
-
-### If the YouTube deep link doesn't work in Simulator
-
-```
-The "Open in YouTube" button isn't working in the Simulator. That's 
-probably expected since the Simulator doesn't have the YouTube app 
-installed. Can you add a fallback so it handles the case where the 
-YouTube app isn't available? It should show a brief message like 
-"YouTube app not found" instead of failing silently.
-```
-
----
-
-## Phase 4: Reddit Integration
+This replaces the original Phase 4 (Reddit API). It wires up the real data source: a queue.json file in an iCloud container, hydrated by calls to public web endpoints.
 
 ### Before starting Phase 4
 
-You need your Reddit API credentials first. Use this prompt to get help setting that up:
+You need to configure the iCloud capability in Xcode first:
 
 ```
-Before we wire up Reddit, I need help getting my API credentials. Can you 
-create the reddit-auth-setup helper script from the PRD? It should:
+Before we build the QueueContentProvider, I need to configure the iCloud 
+capability in Xcode. Can you walk me through the exact steps in Xcode 
+to:
 
-1. Walk me through the OAuth flow on my Mac
-2. Open the browser for Reddit authorization
-3. Capture the callback with the authorization code
-4. Exchange it for access + refresh tokens
-5. Output a ready-to-use Secrets.plist file
+1. Enable the iCloud capability for the Upvote TV target
+2. Check "iCloud Documents" under services
+3. Configure a ubiquity container identifier 
+   (iCloud.com.justinnikolaus.Upvote-TV)
+4. Verify the entitlements file is updated correctly
+5. Confirm the container is visible in the Apple Developer portal
 
-The Reddit app client ID is: [paste your client ID here]
-The redirect URI I registered is: upvotetv://auth/callback
+I want to make sure this is set up right before we start writing code 
+that depends on it.
 ```
 
 ### Kick off Phase 4
 
 ```
-I have my Reddit credentials in Secrets.plist. Let's build Phase 4 - 
-Reddit integration:
+Let's build Phase 4 of v3: the iCloud Queue integration. Using the 
+architecture in PRD.md (Architecture Overview, Queue File Specification, 
+and Metadata Resolution sections), please build:
 
-1. Auth service that reads Secrets.plist on first launch, handles token 
-   refresh, and persists rotated refresh tokens via SwiftData
-2. Reddit API client for GET /user/{username}/upvoted
-3. Response normalizer that handles all the Reddit API quirks:
-   - v.redd.it HLS URL extraction from media.reddit_video
-   - Gallery data from gallery_data + media_metadata (with HTML entity 
-     decoding)
-   - Image preview resolution selection (aim for ~1920px wide)
-   - YouTube detection (domain contains "youtube.com" or "youtu.be") 
-     classified as PostType.youtube with video ID extracted
-   - Link post URL and domain extraction
-   - NSFW flag mapping from over_18
-4. RedditContentProvider conforming to the ContentProvider protocol
-5. Auth error screen (Screen I from PRD)
-6. Stale data banner (Screen J from PRD)
-7. Refresh-on-launch flow with fallback to cached content
+1. QueueFileReader - reads queue.json from the iCloud ubiquity container.
+   Handles the file-not-found case gracefully.
 
-Refer to the Reddit API Integration and Authentication Architecture 
-sections of PRD.md.
+2. QueueFileWriter - atomic writer (temp file + rename) for queue.json.
+   Used later by the "Remove from Queue" context menu action.
+
+3. RedditMetadataResolver - takes a QueueItem with source=.reddit and 
+   fetches https://www.reddit.com/comments/{id}.json (no auth). Parses 
+   the response into a Post using the same normalizer logic originally 
+   planned for RedditContentProvider. Handles all post type variants:
+   - v.redd.it video (extract hls_url from media.reddit_video)
+   - Gallery (gallery_data + media_metadata, HTML-decoded URLs)
+   - Image (preview.images, resolution closest to 1920px wide)
+   - Text (selftext)
+   - YouTube-domain Reddit posts (classify as PostType.youtube)
+   - Link (url_overridden_by_dest)
+
+4. YouTubeMetadataResolver - takes a QueueItem with source=.youtube 
+   and fetches https://www.youtube.com/oembed?url={url}&format=json. 
+   Returns a Post with postType=.youtube, title, author, thumbnailURL.
+
+5. MetadataCache - SwiftData-backed cache for resolved Posts with 
+   24-hour freshness. On hydration, items with fresh cache skip 
+   the network call.
+
+6. QueueContentProvider - conforms to ContentProvider. Orchestrates:
+   - Read queue file
+   - For each item, check cache, fetch if stale/missing
+   - Return fully hydrated [Post] to UI
+   - Up to 10 concurrent fetches, 10-second per-request timeout
+   - Failed items return as a fallback Post with PostType.unsupported 
+     and the raw URL visible
+
+7. Update the app entry point (UpvoteTVApp or equivalent) so it uses 
+   QueueContentProvider in release and debug builds against real 
+   iCloud. Keep MockContentProvider for SwiftUI previews.
+
+8. Add the Setup Required state (Screen I in PRD) - shown when the 
+   iCloud container can't be accessed.
+
+9. Add the Empty Queue state (Screen A-2 in PRD) - shown when queue.json 
+   is missing or has zero items. Should poll for the file every 10 
+   seconds while visible.
+
+10. Add the stale metadata badge per post (when cache is stale and 
+    refresh failed).
+
+11. Wire up the "Remove from Queue" action in the long-press context 
+    menu so it rewrites queue.json via QueueFileWriter and removes 
+    the CachedPost from SwiftData.
+
+Do NOT build the iOS Shortcut yet - that's Phase 5. For testing this 
+phase, you can manually create a queue.json file with sample entries 
+and drop it into the iCloud container via the Files app on a Mac.
 ```
 
-### If auth is failing
+### Testing Phase 4 with a hand-written queue.json
 
 ```
-The Reddit auth is failing. Here's what I'm seeing: [describe the error 
-or behavior]. Can you add some debug logging so we can figure out what's 
-going wrong with the token refresh?
+Before we build the Shortcut, let's test the QueueContentProvider with 
+a manually-created queue file. Can you:
+
+1. Give me the exact file path where queue.json should live for testing 
+   on my Mac (the iCloud container Documents folder)
+2. Provide a sample queue.json with a few Reddit posts and YouTube 
+   videos so I can drop it in and see the app hydrate it
+3. Explain how to trigger the app to re-read the file after I edit it
 ```
 
-### If posts aren't loading correctly
+### If iCloud access isn't working
 
 ```
-Posts are loading from Reddit but some aren't displaying correctly. 
-[Describe which types - e.g., "videos have no audio", "gallery posts 
-show no images", "some image posts show a tiny thumbnail instead of the 
-full image"]. Can you check the response normalizer for those post types?
+The app is showing the Setup Required state but I AM signed into iCloud 
+and iCloud Drive is enabled. Can you add debug logging to figure out 
+what's going wrong with the ubiquity container access? What's the exact 
+error or nil return from NSFileManager?
 ```
 
-### Testing with real data
+### If metadata fetches are failing
 
 ```
-The Reddit integration is working. Can you switch the app from 
-MockContentProvider to RedditContentProvider so I can test with my 
-real upvoted posts?
+Queue items are loading but some aren't resolving. [Describe what - 
+"all Reddit posts return errors", "YouTube items load but Reddit 
+doesn't", "some post types fail", etc.]. Can you add logging to the 
+metadata resolvers so we can see what the actual HTTP response looks 
+like?
+```
+
+### If `reddit.com/comments/{id}.json` is now gated
+
+```
+Fetching Reddit metadata is failing with a 403 or similar. It looks 
+like the public JSON endpoint may now require auth. Please:
+1. Confirm the failure mode (status code, response body)
+2. Check if there's a different public endpoint we can use 
+3. If none works, we'll need to reconsider the strategy - flag this 
+   to me as a blocker and don't try workarounds yet
 ```
 
 ---
 
-## Phase 5: Polish and Edge Cases
+## Phase 5 (v3): iOS Shortcut
 
 ### Kick off Phase 5
 
 ```
-Let's do Phase 5 - polish pass. Please work through:
+Let's build the iOS Shortcut that captures shared URLs into the queue 
+file. Refer to the Capture Mechanism (iOS Shortcut) section of PRD.md.
 
-1. Rate limit handling - respect Reddit's X-Ratelimit headers, retry 
-   once on 429
-2. NSFW filtering - read the Settings.bundle preference and hide NSFW 
-   posts when disabled
-3. Debug diagnostic overlay for dev builds (auth status, last refresh, 
-   API errors)
+I'll build the Shortcut in the iOS Shortcuts app myself, but I need 
+your help to plan the exact sequence of actions. Please produce:
+
+1. A step-by-step list of the Shortcuts actions to add, in order, with 
+   settings for each. This should cover:
+   - Accept shared URL from share sheet
+   - Domain validation (whitelist: reddit.com and subdomains, redd.it, 
+     youtube.com and subdomains, youtu.be). Reject everything else with 
+     a user-facing error.
+   - URL normalization (per the rules in PRD Section "Validation and 
+     Normalization")
+   - Post/video ID extraction
+   - Read queue.json from the iCloud container (give me the exact path 
+     to use in the "Get File" action)
+   - Parse JSON
+   - Duplicate check by id + source
+   - Append new entry with current ISO8601 timestamp
+   - Write queue.json back atomically
+   - Show success or error haptic/toast
+
+2. Any JavaScript / Run Script actions needed for URL parsing or JSON 
+   manipulation that's beyond what Shortcuts can do natively.
+
+3. Guidance on how to test each step incrementally while building.
+
+4. A brief user-facing setup doc I can keep with the Shortcut: "How 
+   Justin (or wife) installs and uses the Upvote TV Shortcut."
+```
+
+### Distributing the Shortcut to both phones
+
+```
+The Shortcut works on my phone. Now I want to install it on my wife's 
+phone too. What's the best way to share it so both phones are writing 
+to the same queue.json? Options I know of: iCloud share link, AirDrop, 
+exported .shortcut file. Please recommend and explain any caveats.
+```
+
+### If the Shortcut can't read the queue file
+
+```
+The Shortcut errors out at the "Get File" step. It can't access the 
+Upvote TV iCloud container. Is this a capability issue, a path issue, 
+or something else? Can you walk me through how to verify the container 
+is visible to the Files app first?
+```
+
+### If atomic writes aren't working
+
+```
+Sometimes the queue file ends up truncated or malformed after a share, 
+especially if I share quickly or multiple times in a row. It looks like 
+the write isn't atomic. Can you adjust the Shortcut's write step to be 
+more resilient?
+```
+
+---
+
+## Phase 6 (v3): Polish and Edge Cases
+
+### Kick off Phase 6
+
+```
+Let's do Phase 6 - polish pass on the queue model. Please work through:
+
+1. NSFW filtering - read the Settings.bundle preference and hide NSFW 
+   posts when disabled. Applies ONLY to Reddit items (over_18 flag). 
+   YouTube items don't have an NSFW flag - just keep them visible.
+
+2. Debug diagnostic overlay (dev builds only) - show:
+   - Queue file path and last modified time
+   - Number of items in queue, number cached fresh, number stale
+   - Last metadata resolution attempt per source (Reddit, YouTube) 
+     with success/fail counts
+
+3. Cache eviction - if the queue has items removed from it (via the 
+   tvOS "Remove from Queue" action or via the Shortcut not being able 
+   to remove, just via bulk edit of the JSON file), orphan CachedPost 
+   entries should eventually be pruned. Add a pass on launch that 
+   deletes any CachedPost whose id+source isn't in the current queue.
+
 4. Image memory optimization - make sure we're not loading full-res 
-   originals into memory
+   originals into memory. Reddit's preview.images array should give us 
+   a resolution close to 1920px wide; use that.
+
 5. Visual polish - consistent typography, spacing, focus animations, 
-   smooth transitions
-6. Test all error states: auth failure, network failure, media load 
-   failure, empty states
+   smooth transitions across both Reddit and YouTube item types.
+
+6. Test all error states: 
+   - Queue file missing
+   - iCloud unavailable
+   - Individual metadata fetch failure (Reddit and YouTube)
+   - Media load failure per post type
+   - Empty queue
+   - All items watched ("You're Caught Up")
+   - Mixed fresh + stale cache
 ```
 
 ### If the app feels slow
@@ -380,10 +361,10 @@ Let's do Phase 5 - polish pass. Please work through:
 The app feels sluggish when [describe when - scrolling the list, opening 
 detail views, loading images, etc.]. Can you profile what's happening 
 and optimize it? The PRD targets instant-feeling focus movement and 
-preview updates within ~200ms.
+cached items rendering within 500ms of shell appearance.
 ```
 
-### Final visual adjustments
+### Final visual pass
 
 ```
 I want to do a final visual pass. Here are the things I'd like adjusted:
@@ -392,22 +373,37 @@ I want to do a final visual pass. Here are the things I'd like adjusted:
 
 ---
 
-## Phase 6: Auth Setup Tooling
+## Phase 7 (Optional, Deferred): Reddit API Provider
 
-### Kick off Phase 6
+Only run this if Reddit API access is eventually approved under the 
+Responsible Builder Policy. Until then, Phase 7 is not prioritized.
+
+### If/when Reddit approves API access
 
 ```
-Let's build the auth setup helper script for Phase 6. This should be a 
-Mac command-line tool or script that:
+Reddit API access has been approved. Let's restore the deferred Reddit 
+code and integrate it as a supplemental provider.
 
-1. Takes my Reddit client ID as input
-2. Opens my browser to the Reddit authorization page
-3. Starts a local HTTP server to capture the redirect callback
-4. Exchanges the authorization code for access + refresh tokens
-5. Writes a Secrets.plist file I can drop into the Xcode project
+1. Move these files back from /Deferred into the active target:
+   - Services/AuthService.swift
+   - Services/RedditAPIClient.swift
+   - Services/RedditResponseParser.swift
+   - Providers/RedditContentProvider.swift
+   - Tools/reddit-auth-setup.sh
 
-Make it simple and well-documented since I'll need to run this again 
-whenever my refresh token chain breaks.
+2. Update them as needed to match the current data models (Post now 
+   has sharedAt, etc.).
+
+3. Build the OAuth helper script and generate a Secrets.plist. My 
+   Reddit client ID is [paste].
+
+4. Update the app so the user (me, in a debug setting or similar) can 
+   choose between:
+   - QueueContentProvider only (current default)
+   - RedditContentProvider only (fetch 100 upvotes, ignore queue)
+   - Hybrid (merge both sources, dedup by ID)
+
+Refer to PRD.md Phase 7 for the architectural decision there.
 ```
 
 ---
@@ -427,10 +423,10 @@ Can you fix it?
 ### When you want to test a specific scenario
 
 ```
-How do I test [specific scenario - e.g., "what happens when the network 
-is offline", "what happens when a video fails to load", "what the app 
-looks like with only 3 posts"]? Can you set up the mock data or 
-conditions for this?
+How do I test [specific scenario - e.g., "what happens when the queue 
+file is empty", "what happens when a YouTube fetch fails", "what the 
+app looks like with 50 items", "what happens when iCloud is offline"]? 
+Can you set up the mock data or conditions for this?
 ```
 
 ### When you want to understand what was built
@@ -444,9 +440,9 @@ to read the code.
 ### When you want to switch between mock and real data
 
 ```
-Can you add a way to easily switch between MockContentProvider and 
-RedditContentProvider? I want to be able to go back to mock data 
-for testing without changing code every time.
+Can you add a debug toggle to switch between MockContentProvider and 
+QueueContentProvider without changing code each time? A launch argument 
+or a hidden settings flag would both work.
 ```
 
 ### When Xcode shows warnings
@@ -467,7 +463,8 @@ a good message describing what we built?
 
 ```
 How do I run this in the tvOS Simulator right now? Walk me through 
-the steps.
+the steps, including how to get a queue.json into the right place for 
+the Simulator to see it.
 ```
 
 ### When you need to redo something
@@ -477,12 +474,26 @@ I don't like how [feature/screen] turned out. Can we start that part
 over? Here's what I want instead: [describe what you want].
 ```
 
-### When the refresh token breaks
+### When the iCloud queue file gets corrupted
 
 ```
-My Reddit refresh token stopped working. The app is showing the auth 
-error screen. Can you help me run the auth setup script to get a new 
-token?
+The queue.json file seems to be corrupted. The app either won't load 
+or skips entries. Can you:
+1. Help me inspect the current file contents
+2. Diagnose the corruption (invalid JSON, missing fields, etc.)
+3. Decide whether to repair in place or reset and rebuild from scratch
+```
+
+### When a share from iPhone isn't appearing on the TV
+
+```
+I shared a [Reddit post / YouTube video] from my iPhone about [time 
+ago] but it's still not showing up on the TV. Can you help me debug 
+whether the problem is:
+- The Shortcut didn't write to the file
+- iCloud hasn't synced yet
+- The Apple TV is reading a stale cache
+- Something else
 ```
 
 ---
@@ -491,12 +502,16 @@ token?
 
 **Be specific about what you see.** Instead of "it looks wrong," say "the thumbnail is stretched horizontally and the title text is cut off after one line instead of two."
 
-**Reference the PRD.** If Claude Code drifts from the spec, you can say "Check Section X in PRD.md - it should work like [this]."
+**Reference the PRD.** If Claude Code drifts from the spec, you can say "Check Section X in PRD.md, it should work like [this]."
 
 **One phase at a time.** Don't try to do multiple phases in one prompt. Finish one, make sure it works, then move on.
 
 **Test before moving on.** After each phase, ask Claude Code to help you verify things work before starting the next phase.
 
-**It's okay to say "undo that."** If a change makes things worse, just tell Claude Code to revert it. That's normal.
+**Migration steps need extra care.** The v2 to v3 migration touches working code. Always verify the app still builds and runs after each migration sub-step before moving to the next.
+
+**It's okay to say "undo that."** If a change makes things worse, tell Claude Code to revert it. That's normal.
 
 **Screenshots help.** If you can describe or screenshot what you're seeing, Claude Code can fix things much faster than if you just say "it's broken."
+
+**iCloud is slow sometimes.** When testing the queue flow end-to-end, give iCloud Drive 30 seconds or so to sync from iPhone to Apple TV. If nothing shows up after a minute, then debug.

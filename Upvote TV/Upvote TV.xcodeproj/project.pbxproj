@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		51AD0A512F935CE900B07397 /* Upvote TV Share.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 51AD0A472F935CE900B07397 /* Upvote TV Share.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		5104C5682F8998D9004FEFB0 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -21,13 +25,46 @@
 			remoteGlobalIDString = 5104C5542F8998D7004FEFB0;
 			remoteInfo = "Upvote TV";
 		};
+		51AD0A4F2F935CE900B07397 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 5104C54D2F8998D7004FEFB0 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 51AD0A462F935CE900B07397;
+			remoteInfo = "Upvote TV Share";
+		};
 /* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		51AD0A562F935CE900B07397 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				51AD0A512F935CE900B07397 /* Upvote TV Share.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		5104C5552F8998D7004FEFB0 /* Upvote TV.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Upvote TV.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		5104C5672F8998D9004FEFB0 /* Upvote TVTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Upvote TVTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		5104C5712F8998D9004FEFB0 /* Upvote TVUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Upvote TVUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		51AD0A352F935C5B00B07397 /* Upvote TV Mobile.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Upvote TV Mobile.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		51AD0A472F935CE900B07397 /* Upvote TV Share.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = "Upvote TV Share.appex"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		51AD0A522F935CE900B07397 /* Exceptions for "Upvote TV Share" folder in "Upvote TV Share" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 51AD0A462F935CE900B07397 /* Upvote TV Share */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		5104C5572F8998D7004FEFB0 /* Upvote TV */ = {
@@ -43,6 +80,24 @@
 		5104C5742F8998D9004FEFB0 /* Upvote TVUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = "Upvote TVUITests";
+			sourceTree = "<group>";
+		};
+		51AD0A362F935C5B00B07397 /* Upvote TV Mobile */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "Upvote TV Mobile";
+			sourceTree = "<group>";
+		};
+		51AD0A482F935CE900B07397 /* Upvote TV Share */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				51AD0A522F935CE900B07397 /* Exceptions for "Upvote TV Share" folder in "Upvote TV Share" target */,
+			);
+			path = "Upvote TV Share";
+			sourceTree = "<group>";
+		};
+		51AD0A902F935CE900B07397 /* Shared */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Shared;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -69,15 +124,32 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		51AD0A322F935C5B00B07397 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		51AD0A442F935CE900B07397 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
 		5104C54C2F8998D7004FEFB0 = {
 			isa = PBXGroup;
 			children = (
+				51AD0A902F935CE900B07397 /* Shared */,
 				5104C5572F8998D7004FEFB0 /* Upvote TV */,
 				5104C56A2F8998D9004FEFB0 /* Upvote TVTests */,
 				5104C5742F8998D9004FEFB0 /* Upvote TVUITests */,
+				51AD0A362F935C5B00B07397 /* Upvote TV Mobile */,
+				51AD0A482F935CE900B07397 /* Upvote TV Share */,
 				5104C5562F8998D7004FEFB0 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -88,6 +160,8 @@
 				5104C5552F8998D7004FEFB0 /* Upvote TV.app */,
 				5104C5672F8998D9004FEFB0 /* Upvote TVTests.xctest */,
 				5104C5712F8998D9004FEFB0 /* Upvote TVUITests.xctest */,
+				51AD0A352F935C5B00B07397 /* Upvote TV Mobile.app */,
+				51AD0A472F935CE900B07397 /* Upvote TV Share.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -109,6 +183,7 @@
 			);
 			fileSystemSynchronizedGroups = (
 				5104C5572F8998D7004FEFB0 /* Upvote TV */,
+				51AD0A902F935CE900B07397 /* Shared */,
 			);
 			name = "Upvote TV";
 			packageProductDependencies = (
@@ -163,6 +238,54 @@
 			productReference = 5104C5712F8998D9004FEFB0 /* Upvote TVUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		51AD0A342F935C5B00B07397 /* Upvote TV Mobile */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 51AD0A402F935C5D00B07397 /* Build configuration list for PBXNativeTarget "Upvote TV Mobile" */;
+			buildPhases = (
+				51AD0A312F935C5B00B07397 /* Sources */,
+				51AD0A322F935C5B00B07397 /* Frameworks */,
+				51AD0A332F935C5B00B07397 /* Resources */,
+				51AD0A562F935CE900B07397 /* Embed Foundation Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				51AD0A502F935CE900B07397 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				51AD0A362F935C5B00B07397 /* Upvote TV Mobile */,
+				51AD0A902F935CE900B07397 /* Shared */,
+			);
+			name = "Upvote TV Mobile";
+			packageProductDependencies = (
+			);
+			productName = "Upvote TV Mobile";
+			productReference = 51AD0A352F935C5B00B07397 /* Upvote TV Mobile.app */;
+			productType = "com.apple.product-type.application";
+		};
+		51AD0A462F935CE900B07397 /* Upvote TV Share */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 51AD0A532F935CE900B07397 /* Build configuration list for PBXNativeTarget "Upvote TV Share" */;
+			buildPhases = (
+				51AD0A432F935CE900B07397 /* Sources */,
+				51AD0A442F935CE900B07397 /* Frameworks */,
+				51AD0A452F935CE900B07397 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				51AD0A482F935CE900B07397 /* Upvote TV Share */,
+				51AD0A902F935CE900B07397 /* Shared */,
+			);
+			name = "Upvote TV Share";
+			packageProductDependencies = (
+			);
+			productName = "Upvote TV Share";
+			productReference = 51AD0A472F935CE900B07397 /* Upvote TV Share.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -184,6 +307,12 @@
 						CreatedOnToolsVersion = 16.2;
 						TestTargetID = 5104C5542F8998D7004FEFB0;
 					};
+					51AD0A342F935C5B00B07397 = {
+						CreatedOnToolsVersion = 16.2;
+					};
+					51AD0A462F935CE900B07397 = {
+						CreatedOnToolsVersion = 16.2;
+					};
 				};
 			};
 			buildConfigurationList = 5104C5502F8998D7004FEFB0 /* Build configuration list for PBXProject "Upvote TV" */;
@@ -203,6 +332,8 @@
 				5104C5542F8998D7004FEFB0 /* Upvote TV */,
 				5104C5662F8998D9004FEFB0 /* Upvote TVTests */,
 				5104C5702F8998D9004FEFB0 /* Upvote TVUITests */,
+				51AD0A342F935C5B00B07397 /* Upvote TV Mobile */,
+				51AD0A462F935CE900B07397 /* Upvote TV Share */,
 			);
 		};
 /* End PBXProject section */
@@ -223,6 +354,20 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		5104C56F2F8998D9004FEFB0 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		51AD0A332F935C5B00B07397 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		51AD0A452F935CE900B07397 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -253,6 +398,20 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		51AD0A312F935C5B00B07397 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		51AD0A432F935CE900B07397 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -265,6 +424,11 @@
 			isa = PBXTargetDependency;
 			target = 5104C5542F8998D7004FEFB0 /* Upvote TV */;
 			targetProxy = 5104C5722F8998D9004FEFB0 /* PBXContainerItemProxy */;
+		};
+		51AD0A502F935CE900B07397 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 51AD0A462F935CE900B07397 /* Upvote TV Share */;
+			targetProxy = 51AD0A4F2F935CE900B07397 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -393,6 +557,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = "App Icon & Top Shelf Image";
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "Upvote TV/Upvote TV.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"Upvote TV/Preview Content\"";
@@ -419,6 +584,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = "App Icon & Top Shelf Image";
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "Upvote TV/Upvote TV.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"Upvote TV/Preview Content\"";
@@ -508,6 +674,122 @@
 			};
 			name = Release;
 		};
+		51AD0A412F935C5D00B07397 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"Upvote TV Mobile/Preview Content\"";
+				DEVELOPMENT_TEAM = 6A4J2GTB6F;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.justinnikolaus.Upvote-TV-Mobile";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		51AD0A422F935C5D00B07397 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"Upvote TV Mobile/Preview Content\"";
+				DEVELOPMENT_TEAM = 6A4J2GTB6F;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.justinnikolaus.Upvote-TV-Mobile";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		51AD0A542F935CE900B07397 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 6A4J2GTB6F;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Upvote TV Share/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "Upvote TV Share";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.justinnikolaus.Upvote-TV-Mobile.Upvote-TV-Share";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		51AD0A552F935CE900B07397 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 6A4J2GTB6F;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Upvote TV Share/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "Upvote TV Share";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.justinnikolaus.Upvote-TV-Mobile.Upvote-TV-Share";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -543,6 +825,24 @@
 			buildConfigurations = (
 				5104C5822F8998D9004FEFB0 /* Debug */,
 				5104C5832F8998D9004FEFB0 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		51AD0A402F935C5D00B07397 /* Build configuration list for PBXNativeTarget "Upvote TV Mobile" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				51AD0A412F935C5D00B07397 /* Debug */,
+				51AD0A422F935C5D00B07397 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		51AD0A532F935CE900B07397 /* Build configuration list for PBXNativeTarget "Upvote TV Share" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				51AD0A542F935CE900B07397 /* Debug */,
+				51AD0A552F935CE900B07397 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

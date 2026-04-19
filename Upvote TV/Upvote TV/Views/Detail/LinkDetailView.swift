@@ -48,8 +48,12 @@ struct LinkDetailView: View {
 
                 // Metadata
                 HStack(spacing: 16) {
-                    Text("r/\(post.subreddit)")
-                    Text("u/\(post.author)")
+                    if let subreddit = post.subreddit, !subreddit.isEmpty {
+                        Text("r/\(subreddit)")
+                    }
+                    if let author = post.author, !author.isEmpty {
+                        Text(post.subreddit == nil ? author : "u/\(author)")
+                    }
                     if let score = post.score {
                         HStack(spacing: 4) {
                             Image(systemName: "arrow.up")

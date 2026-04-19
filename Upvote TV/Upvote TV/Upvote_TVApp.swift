@@ -7,7 +7,6 @@ struct Upvote_TVApp: App {
         let schema = Schema([
             WatchedState.self,
             CachedPost.self,
-            AuthState.self,
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 

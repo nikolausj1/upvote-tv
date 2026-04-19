@@ -5,8 +5,8 @@ import SwiftData
 final class CachedPost {
     var postID: String
     var title: String
-    var subreddit: String
-    var author: String
+    var subreddit: String?
+    var author: String?
     var createdAt: Date
     var postTypeRaw: String
 
@@ -24,6 +24,8 @@ final class CachedPost {
     var isNSFW: Bool
     var score: Int?
 
+    var sharedAt: Date?
+    var resolvedAt: Date?
     var cachedAt: Date
 
     init(from post: Post, cachedAt: Date = Date()) {
@@ -44,6 +46,8 @@ final class CachedPost {
         self.domain = post.domain
         self.isNSFW = post.isNSFW
         self.score = post.score
+        self.sharedAt = post.sharedAt
+        self.resolvedAt = post.resolvedAt
         self.cachedAt = cachedAt
     }
 
@@ -68,7 +72,9 @@ final class CachedPost {
             outboundURL: outboundURLString.flatMap { URL(string: $0) },
             domain: domain,
             isNSFW: isNSFW,
-            score: score
+            score: score,
+            sharedAt: sharedAt,
+            resolvedAt: resolvedAt
         )
     }
 }
