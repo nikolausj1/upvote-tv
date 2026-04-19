@@ -17,27 +17,54 @@ struct BrowseListView: View {
             Group {
                 if viewModel.isLoading {
                     BrowseSkeletonView()
-                } else if viewModel.posts.isEmpty, let error = viewModel.loadError {
-                    AuthErrorView(error: error)
+                } else if viewModel.showConnectionError {
+                    ConnectionErrorView(error: viewModel.loadError)
+                } else if viewModel.showEmptyQueue {
+                    EmptyQueueView {
+                        viewModel.pollForNewItems()
+                    }
                 } else {
                     browseList
                 }
             }
             .animation(.easeInOut(duration: 0.3), value: viewModel.isLoading)
-
-            DebugOverlayView(viewModel: viewModel)
+            .animation(.easeInOut(duration: 0.2), value: viewModel.showEmptyQueue)
         }
         .task {
             await viewModel.loadPosts()
-            if viewModel.allWatched {
-                focusedID = Self.caughtUpID
-            } else {
-                focusedID = viewModel.sortedPosts.first?.id
-            }
+            resetFocusToTop()
         }
         .background(Color.black)
-        .fullScreenCover(item: $selectedPost) { post in
+        .fullScreenCover(item: $selectedPost, onDismiss: {
+            // After closing a detail view, move focus back to the top of the
+            // list. The item the user just watched has likely shifted into the
+            // Watched section, so without this they'd have to scroll up
+            // manually to pick the next item.
+            //
+            // The deferred dispatch is deliberate: tvOS's focus engine restores
+            // focus to the row that was focused before the cover appeared, and
+            // that restore runs AFTER onDismiss. We schedule our reset on the
+            // next run loop so it lands after the engine's restore.
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(100))
+                resetFocusToTop()
+            }
+        }) { post in
             detailView(for: post)
+        }
+    }
+
+    /// Picks the best "top of list" focus target after a load or detail dismiss.
+    private func resetFocusToTop() {
+        // Clear first, so SwiftUI registers the change even if the target ID
+        // matches the prior focus (which would otherwise be a no-op write).
+        focusedID = nil
+        if let first = viewModel.unwatchedPosts.first {
+            focusedID = first.id
+        } else if viewModel.allWatched {
+            focusedID = Self.caughtUpID
+        } else {
+            focusedID = viewModel.sortedPosts.first?.id
         }
     }
 
@@ -45,10 +72,6 @@ struct BrowseListView: View {
 
     private var browseList: some View {
         VStack(spacing: 0) {
-            if viewModel.isShowingCachedContent {
-                StaleBanner(cachedDate: viewModel.cachedContentDate)
-            }
-
             ScrollView {
                 LazyVStack(spacing: 10) {
                     // Caught-up row
@@ -129,6 +152,14 @@ struct BrowseListView: View {
                 } label: {
                     Label("Mark as Watched", systemImage: "eye.fill")
                 }
+            }
+
+            Button(role: .destructive) {
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    viewModel.removeFromQueue(postID: post.id)
+                }
+            } label: {
+                Label("Remove from Queue", systemImage: "trash")
             }
         }
     }
