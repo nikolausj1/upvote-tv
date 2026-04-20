@@ -74,6 +74,8 @@ struct BrowseListView: View {
         VStack(spacing: 0) {
             ScrollView {
                 LazyVStack(spacing: 10) {
+                    BrowseHeaderView()
+
                     // Caught-up row
                     if viewModel.allWatched {
                         caughtUpCard
