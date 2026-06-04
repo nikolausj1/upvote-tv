@@ -21,8 +21,8 @@ struct PostCardRow: View {
 
             Spacer(minLength: 8)
 
-            // Thumbnail (visual types only)
-            if post.postType.hasVisualThumbnail {
+            // Thumbnail (visual types, or any post that resolved a preview image)
+            if showsThumbnail {
                 thumbnail
             }
 
@@ -102,6 +102,12 @@ struct PostCardRow: View {
     }
 
     // MARK: - Thumbnail
+
+    /// Show the thumbnail for inherently visual types, and also for link/preview cards
+    /// (e.g. OpenGraph-resolved Reddit posts) that carry a resolved preview image.
+    private var showsThumbnail: Bool {
+        post.postType.hasVisualThumbnail || post.thumbnailURL != nil || post.previewImageURL != nil
+    }
 
     private var thumbnail: some View {
         ZStack {

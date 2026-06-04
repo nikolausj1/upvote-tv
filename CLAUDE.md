@@ -88,9 +88,18 @@ Reddit API (v2) code was removed between v2 and v3; there is no `Deferred/` fold
 
 ## Metadata Resolution Notes
 
-### Reddit Posts (via `https://www.reddit.com/comments/{id}.json`)
+### Reddit Posts (OpenGraph preview workaround — current)
 
-This is the public web JSON endpoint, served by `www.reddit.com`, not `oauth.reddit.com`. No auth required. Same JSON structure as the authenticated API.
+**The public `.json` endpoint is dead.** As of ~June 2026 Reddit gated `reddit.com/comments/{id}.json` behind the Responsible Builder Policy — every request returns a "blocked due to a network policy" page regardless of User-Agent. The authenticated OAuth API needs Data API approval (applied, **denied** for "lacks necessary details"; not reapplied yet).
+
+**Current resolver** (`RedditMetadataResolver`) fetches the post's **HTML page** with a crawler-style User-Agent (`AppConfig.redditPreviewUserAgent`) and parses OpenGraph tags — the same link-preview surface iMessage/Slack/Discord use. Reddit substring-matches the `facebookexternalhit` token in the UA and serves a lightweight preview page (otherwise it returns a bot-verification wall).
+
+- **What we get:** post title + subreddit (from the page `<title>`, format `"{title} : r/{sub}"`), a thumbnail (`og:image` → `share.redd.it/preview/post/{id}`), and the canonical URL (`og:url`).
+- **Everything resolves as `PostType.link`** (a preview card). tvOS has no browser or Reddit app to open posts in, so richer types add no value on this path.
+- **Lost vs. the old JSON path** (restore if/when OAuth is approved): in-app `v.redd.it` HLS video playback, gallery arrays, score, author, and the `over_18` flag — so **NSFW filtering does not apply to Reddit items** on this path.
+- `PostCardRow` shows a thumbnail for any post carrying a preview image, not just inherently-visual types, so these `.link` cards render their `og:image`.
+
+**If Reddit Data API access is approved (PRD Phase 7):** write a JSON/OAuth resolver against `oauth.reddit.com` producing the same `normalize → Post` shape. The notes below describe that richer JSON structure.
 
 - **v.redd.it videos:** Audio and video are separate DASH streams. Use the `hls_url` field from `media.reddit_video` for AVKit playback. The `fallback_url` is video-only (no audio).
 - **Gallery posts:** Image data is split across `gallery_data.items` (ordering) and `media_metadata` (URLs). URLs in `media_metadata` are HTML-encoded and need decoding.
