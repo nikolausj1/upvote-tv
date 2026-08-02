@@ -3,6 +3,10 @@ import SwiftUI
 struct PostCardRow: View {
     let post: Post
     let isWatched: Bool
+    /// Called when the thumbnail can't be loaded, so the post can be re-resolved. Reddit's
+    /// preview URLs are signed and the metadata cache is long-lived, so a failed image is
+    /// the signal that a cached URL has gone bad.
+    var onThumbnailFailure: (() -> Void)?
 
     var body: some View {
         HStack(spacing: 20) {
@@ -120,6 +124,9 @@ struct PostCardRow: View {
                             image
                                 .resizable()
                                 .aspectRatio(contentMode: .fill)
+                        case .failure:
+                            thumbnailPlaceholder
+                                .onAppear { onThumbnailFailure?() }
                         default:
                             thumbnailPlaceholder
                         }

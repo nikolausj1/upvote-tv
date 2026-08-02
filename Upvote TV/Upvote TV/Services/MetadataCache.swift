@@ -48,6 +48,17 @@ final class MetadataCache {
         }
     }
 
+    /// Forces a post to be treated as expired without discarding what we know about it.
+    ///
+    /// Used when a thumbnail fails to load: the card still renders from cache (with a stale
+    /// badge), but the next refresh re-resolves this one post. Deleting the entry instead
+    /// would drop the title too and leave a raw-URL card in the meantime.
+    func markStale(postID: String) {
+        guard let cached = fetchCached(postID: postID) else { return }
+        cached.resolvedAt = .distantPast
+        try? modelContext.save()
+    }
+
     /// Removes the cached snapshot for a post id, if present.
     func remove(postID: String) {
         if let existing = fetchCached(postID: postID) {

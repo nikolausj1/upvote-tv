@@ -16,27 +16,33 @@ struct YouTubeMetadataResolver {
         }
     }
 
-    func resolve(_ item: QueueItem) async throws -> Post {
+    func resolve(_ item: QueueItem) async throws -> ResolvedMetadata {
         guard item.source == .youtube else {
-            throw ContentProviderError.invalidResponse
+            throw MetadataResolveError.invalidResponse
         }
 
         // oEmbed accepts any canonical YouTube URL (watch, youtu.be, shorts, live).
         guard var components = URLComponents(string: "https://www.youtube.com/oembed") else {
-            throw ContentProviderError.invalidResponse
+            throw MetadataResolveError.invalidResponse
         }
         components.queryItems = [
             URLQueryItem(name: "url", value: item.url.absoluteString),
             URLQueryItem(name: "format", value: "json"),
         ]
         guard let url = components.url else {
-            throw ContentProviderError.invalidResponse
+            throw MetadataResolveError.invalidResponse
         }
 
         var request = URLRequest(url: url)
         request.setValue("application/json", forHTTPHeaderField: "Accept")
 
-        let (data, response) = try await session.data(for: request)
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch {
+            throw MetadataResolveError.unreachable
+        }
 
         if let http = response as? HTTPURLResponse {
             switch http.statusCode {
@@ -44,11 +50,11 @@ struct YouTubeMetadataResolver {
                 break
             case 401, 403, 404:
                 // Unlisted/private/removed videos return these.
-                throw ContentProviderError.invalidResponse
+                throw MetadataResolveError.invalidResponse
             case 429:
-                throw ContentProviderError.rateLimited
+                throw MetadataResolveError.rateLimited
             default:
-                throw ContentProviderError.networkError
+                throw MetadataResolveError.unreachable
             }
         }
 
@@ -56,27 +62,19 @@ struct YouTubeMetadataResolver {
         do {
             decoded = try JSONDecoder().decode(OEmbedResponse.self, from: data)
         } catch {
-            throw ContentProviderError.invalidResponse
+            throw MetadataResolveError.invalidResponse
         }
 
-        return Post(
-            id: item.id,
+        return ResolvedMetadata(
             title: decoded.title ?? "(no title)",
-            subreddit: nil,
             author: decoded.author_name,
-            createdAt: item.sharedAt, // oEmbed doesn't expose upload date; use sharedAt as proxy
+            // oEmbed doesn't expose the upload date; leave it nil rather than pass off
+            // `sharedAt` as a publish date.
+            publishedAt: nil,
             postType: .youtube,
             thumbnailURL: decoded.thumbnail_url.flatMap { URL(string: $0) },
-            previewImageURL: decoded.thumbnail_url.flatMap { URL(string: $0) },
-            mediaURL: nil,
-            galleryItems: nil,
-            textBody: nil,
             outboundURL: item.url,
-            domain: item.url.host,
-            isNSFW: false,
-            score: nil,
-            sharedAt: item.sharedAt,
-            resolvedAt: Date()
+            domain: item.url.host
         )
     }
 

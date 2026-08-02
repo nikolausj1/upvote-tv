@@ -1,8 +1,8 @@
 ---
 title: "Upvote TV - Project Instructions"
 created: 2026-04-10
-modified: 2026-04-17
-version: 3.0
+modified: 2026-08-01
+version: 3.5
 author: Claude Opus 4.7 (claude-opus-4-7)
 tags:
 ---
@@ -35,16 +35,21 @@ One Xcode project `Upvote TV.xcodeproj` with three app targets plus tests. Files
 Upvote TV/                          # Xcode workspace root
 ├── Shared/                         # Cross-target Swift code (tvOS + iOS + Share)
 │   ├── AppConfig.swift             # Constants (Gist API base, cache TTL, etc.)
-│   ├── QueueItem.swift             # Queue entry model
+│   ├── QueueItem.swift             # Queue entry model (+ optional resolved metadata)
 │   ├── QueueSource.swift           # .reddit | .youtube
+│   ├── ResolvedMetadata.swift      # Transport/cache shape produced by the resolvers
+│   ├── PostType.swift              # .video | .image | .youtube | .link | …
 │   ├── GistQueueClient.swift       # HTTP GET/PATCH against api.github.com/gists/{id}
+│   ├── RedditMetadataResolver.swift    # RSS primary, OpenGraph fallback
+│   ├── RedditRateLimiter.swift         # Shared per-IP budget governor
+│   ├── YouTubeMetadataResolver.swift   # oEmbed
 │   ├── SecretsLoader.swift         # Reads Gist ID + PAT from Secrets.plist
 │   └── URLClassifier.swift         # URL → (id, source) extraction for both platforms
 │
 ├── Upvote TV/                      # tvOS app target (the player)
-│   ├── Models/                     # Post, PostType, GalleryItem, WatchedState, CachedPost
+│   ├── Models/                     # Post, GalleryItem, WatchedState, CachedPost
 │   ├── Providers/                  # ContentProvider, Mock, QueueContentProvider
-│   ├── Services/                   # RedditMetadataResolver, YouTubeMetadataResolver, MetadataCache, WatchedStateManager
+│   ├── Services/                   # MetadataCache, WatchedStateManager, NSFWFilterService
 │   ├── ViewModels/                 # GalleryViewModel
 │   ├── Views/                      # Browse/, Detail/, States/
 │   ├── Settings.bundle/            # NSFW toggle in tvOS system Settings
@@ -78,7 +83,11 @@ Reddit API (v2) code was removed between v2 and v3; there is no `Deferred/` fold
 
 1. **tvOS UI never talks to GitHub, Reddit, or YouTube directly.** All data flows through the `ContentProvider` protocol.
 2. **MockContentProvider remains a first-class provider.** It covers all post types (including direct YouTube items and YouTube-linked Reddit posts) and is used for SwiftUI previews and offline development.
-3. **The Share Extension writes the minimum possible fields.** Only `id`, `url`, `source`, and `sharedAt`. Titles, thumbnails, and media URLs are resolved on the tvOS side, not written by the extension.
+3. **The Share Extension resolves metadata at share time, best effort.** It always writes `id`, `url`, `source`, and `sharedAt`; it additionally writes a `metadata` block (title, subreddit, author, thumbnail, media URL) when it can resolve one within `AppConfig.shareResolveTimeout`.
+
+   This reverses the original v1 rule ("write the minimum possible fields, resolve on tvOS"). The reason is rate limiting: Reddit meters per IP, and the TV's problem is that it wants the entire queue at once, while the phone wants exactly one post at the moment a human deliberately shared it. Moving the request to the phone is the least bursty possible shape.
+
+   **The extension is never load-bearing.** Metadata is optional at every layer: on timeout, network failure, or an older build, the item is written bare and tvOS resolves it exactly as it always did. Capturing the URL is the job; enriching it is a bonus. Never let a resolution failure block or fail a share.
 4. **Gist writes are whole-file PATCHes.** GitHub handles atomic replacement. Don't emulate partial updates.
 5. **Graceful degradation over filtering.** Show posts even when their metadata can't fully resolve. Items with failed resolution render as a fallback card with the raw URL, not hidden.
 6. **Cached content is the safety net.** If metadata refresh fails, the app must still work with cached data. A stale badge is shown per affected item.
@@ -88,16 +97,30 @@ Reddit API (v2) code was removed between v2 and v3; there is no `Deferred/` fold
 
 ## Metadata Resolution Notes
 
-### Reddit Posts (OpenGraph preview workaround — current)
+### Reddit Posts (RSS primary, OpenGraph fallback, current)
 
 **The public `.json` endpoint is dead.** As of ~June 2026 Reddit gated `reddit.com/comments/{id}.json` behind the Responsible Builder Policy — every request returns a "blocked due to a network policy" page regardless of User-Agent. The authenticated OAuth API needs Data API approval (applied, **denied** for "lacks necessary details"; not reapplied yet).
 
-**Current resolver** (`RedditMetadataResolver`) fetches the post's **HTML page** with a crawler-style User-Agent (`AppConfig.redditPreviewUserAgent`) and parses OpenGraph tags — the same link-preview surface iMessage/Slack/Discord use. Reddit substring-matches the `facebookexternalhit` token in the UA and serves a lightweight preview page (otherwise it returns a bot-verification wall).
+Both surviving endpoints are fetched with the crawler-style User-Agent in `AppConfig.redditPreviewUserAgent`. Reddit substring-matches the `facebookexternalhit` token and serves a lightweight preview instead of a bot-verification wall.
 
-- **What we get:** post title + subreddit (from the page `<title>`, format `"{title} : r/{sub}"`), a thumbnail (`og:image` → `share.redd.it/preview/post/{id}`), and the canonical URL (`og:url`).
-- **Everything resolves as `PostType.link`** (a preview card). tvOS has no browser or Reddit app to open posts in, so richer types add no value on this path.
-- **Lost vs. the old JSON path** (restore if/when OAuth is approved): in-app `v.redd.it` HLS video playback, gallery arrays, score, author, and the `over_18` flag — so **NSFW filtering does not apply to Reddit items** on this path.
-- `PostCardRow` shows a thumbnail for any post carrying a preview image, not just inherently-visual types, so these `.link` cards render their `og:image`.
+**The RSS feed (`reddit.com/comments/{id}.rss?limit=1`) is the primary source.** Measured against the live 59-item queue it resolved 59/59 with a title and subreddit. `limit=1` matters: it asks for the post plus one comment instead of the whole thread, which measured 3.5 KB instead of 33.5 KB and about half the rate-limit units, with no loss of anything the resolver reads. Everything past the first `<entry>` was being downloaded, paid for, and discarded. The feed carries:
+
+- the bare post title (`<title>`, no `" : r/sub"` suffix to strip),
+- the subreddit with correct casing (`<category term="…" label="r/…">`),
+- the author (`<author><name>/u/…`) and the real publish date (`<published>`),
+- a thumbnail (`<media:thumbnail>` on ~73% of posts, with the preview `<img>` inside the escaped `<content>` block as a second source),
+- and the actual media, so `v.redd.it` video still plays in-app via `https://v.redd.it/{id}/HLSPlaylist.m3u8`.
+
+**The OpenGraph HTML page is a fallback only.** It costs 2-3x more rate-limit budget than the feed (see below) while carrying strictly less information, so it is fetched only when (a) RSS produced no usable title, or (b) RSS produced no thumbnail *and* the rate-limit window has budget to spare (`acquireIfBudgetToSpare`). Titles are essential; thumbnails are a bonus that must never crowd them out.
+
+**Rate limiting is the dominant constraint. This is what broke the queue.** Reddit meters both endpoints on a **~9000-unit budget per rolling 60-second window, per IP**, reported via `x-ratelimit-used` / `-remaining` / `-reset`. Cost is per-response-size, not per-request: measured ~150-350 units for a feed, ~230-780 for an HTML page. A 59-item queue therefore **cannot** be hydrated inside one window. Fanning out 10 concurrent resolves × 2 requests each exhausted the budget in seconds and every remaining post came back 429 and rendered as a raw-URL fallback card.
+
+`RedditRateLimiter` (a shared actor, one instance per process because the budget is per-IP) is the single choke point. Every request passes `acquire(before:)` and returns its response via `record(_:)`. It discounts requests admitted but not yet answered, holds back a reserve, and on a 429 waits out the window rather than retrying into the wall. **Never add a short-backoff retry here.** Retrying while throttled just spends more budget and deepens the hole.
+
+- **Deleted posts** still have a feed entry, but the title is `[deleted]` / `[removed]` and the media is gone. They resolve to `PostType.unsupported` with an explicit "Post no longer available on Reddit" title, so they read as dead rather than as a video that fails on playback.
+- **Reddit's generic branded `og:image`** (`i.redd.it/o0h58lzmax6a1.png`) is served for any post without a real preview. It is filtered out by `isPlaceholderImage`, since it is the same image on every such post and the style guide rules out Reddit branding anyway.
+- **Still lost vs. the old JSON path** (restore if/when OAuth is approved): gallery arrays, score, and the `over_18` flag, so **NSFW filtering does not apply to Reddit items**.
+- `PostCardRow` shows a thumbnail for any post carrying a preview image, not just inherently-visual types.
 
 **If Reddit Data API access is approved (PRD Phase 7):** write a JSON/OAuth resolver against `oauth.reddit.com` producing the same `normalize → Post` shape. The notes below describe that richer JSON structure.
 
@@ -111,16 +134,30 @@ Reddit API (v2) code was removed between v2 and v3; there is no `Deferred/` fold
 
 Unauthenticated oEmbed endpoint. Returns `title`, `author_name`, `thumbnail_url`, and dimensions. Does NOT return duration. YouTube items always classify as `PostType.youtube`.
 
+### Hydration Tiers
+
+`QueueContentProvider` satisfies each item from the cheapest source that can answer, and only the last one costs a Reddit request:
+
+1. **Share-time metadata** already in `queue.json` (see Architecture Rule 3). Free: it arrived with the queue fetch.
+2. **Local `CachedPost`** within its TTL. Free.
+3. **A live resolve.** Everything above exists to avoid reaching this.
+
 ### Concurrency and Caching
 
-- Up to 10 concurrent metadata fetches per refresh.
-- Per-request timeout: 10 seconds.
-- Cached results stay fresh for 24 hours. Stale items refetch in the background while the list renders with the stale data.
+- **Posts are emitted progressively.** `ContentProvider.postsStream(deprioritizing:)` yields the complete best-known list repeatedly: first everything tiers 1 and 2 could answer, then an updated snapshot as each live resolve lands. Waiting for the last post before showing the first turned an unavoidable rate-limit delay into a blank screen. A cold 59-item queue now renders in about 8 seconds instead of roughly 4 minutes.
+- An empty snapshot mid-hydration means "nothing resolved yet", not "empty queue". Both the provider and `GalleryViewModel` guard against showing `EmptyQueueView` in that window.
+- Up to 4 concurrent metadata fetches per refresh (`AppConfig.resolverConcurrency`). Deliberately low: Reddit's budget, not parallelism, is the limit, and every request in flight is budget `RedditRateLimiter` can only estimate. A wider fan-out just blurs that estimate.
+- Per-request timeout: 10 seconds. Per-post budget-wait deadline: 150 seconds (`redditResolveDeadline`).
+- **Cached results stay fresh for 30 days**, minus a stable per-post jitter (`AppConfig.cacheTTL(forPostID:)`). Long on purpose: a Reddit post's title, subreddit, author, publish date, and media URL are immutable, so a short TTL just re-spends the budget re-learning facts that cannot change. The jitter exists because a queue hydrated in one burst would otherwise expire in one burst. Use `cacheTTL(forPostID:)`, never the raw `cacheTTL`, for freshness checks.
+- The one thing that *can* rot is a signed preview-image URL. `PostCardRow` reports a failed image load, which calls `MetadataCache.markStale` for that single post so the next refresh re-resolves it. That is the targeted alternative to expiring the whole queue on a timer.
 - If refetch fails, keep the stale cache and show a stale badge on the affected item.
+- **A refresh may not finish the whole queue, and that is fine.** Work is ordered by visibility: watched posts last (they sit at the bottom of the list and are rarely opened), then never-seen posts before stale ones, since a post with no cache entry is the one currently showing as a raw-URL card. Whatever is skipped is picked up on the next refresh; nothing is lost.
+- A 429 is retried up to `redditThrottleRetries` times, but each retry waits out the rate-limit window first. Never replace this with a short fixed backoff.
+- `RedditRateLimiter` persists its window state to `UserDefaults`, so a cold launch mid-window inherits what the last run learned instead of rediscovering an exhausted budget by eating 429s.
 
 ### Public Endpoint Risk
 
-Both endpoints used by v1 (`reddit.com/.json` and `youtube.com/oembed`) are currently public and unauthenticated. If either is gated in the future, the corresponding resolver breaks and we may need to move to the authenticated API (Phase 7 for Reddit, or a YouTube Data API key).
+Both endpoints used by v1 (Reddit's RSS/preview surface and `youtube.com/oembed`) are public and unauthenticated. If either is gated, the corresponding resolver breaks and we may need to move to the authenticated API (Phase 7 for Reddit, or a YouTube Data API key). Reddit has already gated `.json` once, so treat continued RSS access as borrowed time.
 
 ## YouTube Playback on tvOS
 
@@ -152,6 +189,7 @@ xcodebuild -scheme "Upvote TV" -destination 'platform=tvOS Simulator,name=Apple 
 
 The queue lives as a single `queue.json` file inside a secret GitHub Gist. All three targets (tvOS, iOS Mobile, iOS Share) read/write it via `api.github.com/gists/{id}` using a fine-grained Personal Access Token.
 
+- **Schema v2** added an optional `metadata` block per item, written by the Share Extension. Every field in it is optional and the block itself is optional, so v1 files (no metadata anywhere) decode without special-casing, and malformed metadata is dropped while the item itself is kept. Losing metadata costs one resolve; losing a queue entry loses somebody's share.
 - Configuration lives in `Secrets.plist` in each target's bundle (gitignored). Two keys: `GistID`, `GistToken`.
 - **One canonical `Secrets.plist`** lives at `Upvote TV/Upvote TV/Secrets.plist`. The iOS Mobile and Share targets have symlinks pointing to it, so there is one file to rotate at token-renewal time.
 - `SecretsLoader.shared.isConfigured` → false causes tvOS to render `ConnectionErrorView` and iOS to show an explanatory failure state in the Share Extension.
@@ -194,3 +232,14 @@ Selecting any post opens it full-screen. There is no side preview panel.
 
 - Mark as Watched / Mark as Unwatched
 - Remove from Queue (rewrites queue.json and drops CachedPost)
+## Oracle Reporting Contract
+
+This project is tracked by Oracle, a portfolio agent at the `_Projects` root that rolls up all project statuses into `_Projects/_Oracle/PORTFOLIO.md`. Parent standards and the Oracle Status Format are defined in `_Projects/CLAUDE.md` (inherited; read it). Your obligations:
+
+1. Keep `STATUS.md` at this project's root current. At the end of any session with meaningful progress, decisions, or new blockers, refresh it before finishing.
+2. Follow the Oracle Status Format defined in `_Projects/CLAUDE.md` exactly. Update the front matter `modified` date and bump `version` on every edit.
+3. Keep the Ideas Shelf stocked: 2 to 5 self-contained backlog items sized S / M / L that Justin could pick up for fun.
+4. Never delete `STATUS.md`. If parking the project, set Stage to Paused and note why.
+5. Oracle trusts `STATUS.md` completely. It does not inspect code or git. An inaccurate status means Justin gets a wrong portfolio picture.
+6. Edits to `STATUS.md` marked "updated via Oracle at Justin's direction" are legitimate and authoritative: Justin dictated them at the portfolio level. Reconcile them with the backlog at session start; do not revert them.
+7. Share what you learn. When this project discovers a reusable technique, fix, or better workflow that other projects could benefit from (environment-level, not project-specific design), record it briefly in an optional `## Lessons` section at the bottom of `STATUS.md`, below the divider. Oracle reviews these every run and promotes vetted ones into the shared Project Build Guide. The master guide at `_Projects/_Templates/Project Build Guide.md` is authoritative; if this folder contains its own older copy, prefer the master and its Changelog.

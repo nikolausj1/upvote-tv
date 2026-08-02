@@ -1,10 +1,15 @@
 import Foundation
 
 struct MockContentProvider: ContentProvider {
-    func fetchUpvotedPosts() async throws -> [Post] {
-        // Simulate network delay
-        try await Task.sleep(for: .milliseconds(800))
-        return Self.samplePosts
+    func postsStream(deprioritizing watchedIDs: Set<String>) -> AsyncThrowingStream<[Post], Error> {
+        AsyncThrowingStream { continuation in
+            Task {
+                // Simulate network delay
+                try? await Task.sleep(for: .milliseconds(800))
+                continuation.yield(Self.samplePosts)
+                continuation.finish()
+            }
+        }
     }
 
     // MARK: - Sample Data

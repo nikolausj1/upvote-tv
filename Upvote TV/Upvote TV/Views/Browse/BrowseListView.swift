@@ -136,7 +136,9 @@ struct BrowseListView: View {
         return Button {
             selectedPost = post
         } label: {
-            PostCardRow(post: post, isWatched: watched)
+            PostCardRow(post: post, isWatched: watched) {
+                viewModel.reportThumbnailFailure(for: post.id)
+            }
         }
         .buttonStyle(PostCardStyle(isWatched: watched))
         .id(post.id)

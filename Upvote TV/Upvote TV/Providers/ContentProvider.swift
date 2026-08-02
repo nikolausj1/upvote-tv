@@ -29,15 +29,36 @@ enum ContentProviderError: Error, LocalizedError, Equatable {
 }
 
 protocol ContentProvider {
-    func fetchUpvotedPosts() async throws -> [Post]
+    /// Emits the queue as it hydrates, rather than making the caller wait for all of it.
+    ///
+    /// Each element is the complete best-known list, so a consumer can just assign it. The
+    /// first emission carries everything already cached (usually the whole queue); later
+    /// emissions arrive as individual posts finish resolving.
+    ///
+    /// This matters because Reddit's rate limit means a cold queue genuinely cannot be
+    /// hydrated quickly (see `RedditRateLimiter`). Waiting for the last post before showing
+    /// the first one turns an unavoidable delay into an empty screen.
+    ///
+    /// `deprioritizing` names posts the user has already watched. They sort to the bottom
+    /// of the list and are rarely opened, so they resolve last and never hold up the items
+    /// actually on screen.
+    func postsStream(deprioritizing watchedIDs: Set<String>) -> AsyncThrowingStream<[Post], Error>
 
     /// Remove an item from the queue (if backed by a mutable transport) and drop its cached metadata.
     /// Default implementation is a no-op for providers that don't back a persistent queue.
     func removeItem(postID: String) async throws
+
+    /// Mark one post's metadata stale because its thumbnail wouldn't load, so the next
+    /// refresh re-resolves just that post. Default implementation is a no-op.
+    func invalidateThumbnail(postID: String)
 }
 
 extension ContentProvider {
     func removeItem(postID: String) async throws {
+        // Default: no-op. MockContentProvider inherits this.
+    }
+
+    func invalidateThumbnail(postID: String) {
         // Default: no-op. MockContentProvider inherits this.
     }
 }

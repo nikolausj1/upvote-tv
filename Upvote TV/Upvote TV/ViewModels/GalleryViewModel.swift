@@ -90,12 +90,23 @@ final class GalleryViewModel: ObservableObject {
         }
         loadError = nil
         do {
-            let fetched = try await provider.fetchUpvotedPosts()
-            posts = fetched
-            if debugMarkAllWatched {
-                for post in fetched { watchedManager.markWatched(post.id) }
+            // Snapshots arrive progressively: cached posts first, then each freshly
+            // resolved one. Drop the loading state on the first snapshot so the user sees
+            // their queue immediately instead of waiting out the slowest resolve.
+            for try await snapshot in provider.postsStream(deprioritizing: watchedIDsSnapshot()) {
+                posts = snapshot
+                if debugMarkAllWatched {
+                    for post in snapshot { watchedManager.markWatched(post.id) }
+                }
+                refreshWatchedMap()
+                // Only stand down the skeleton once there's something to show. An empty
+                // snapshot mid-hydration means "nothing resolved yet", and treating that
+                // as a finished load would flash the empty-queue screen on a cold start.
+                if !snapshot.isEmpty {
+                    hasAttemptedLoad = true
+                    isLoading = false
+                }
             }
-            refreshWatchedMap()
         } catch let error as ContentProviderError {
             loadError = error
         } catch {
@@ -103,6 +114,22 @@ final class GalleryViewModel: ObservableObject {
         }
         hasAttemptedLoad = true
         isLoading = false
+    }
+
+    /// Watched ids known before the load starts, so the provider can resolve them last.
+    /// Derived from the store rather than `watchedMap`, which is empty on a cold launch.
+    private func watchedIDsSnapshot() -> Set<String> {
+        let ids = posts.map(\.id)
+        guard !ids.isEmpty else { return [] }
+        return Set(watchedManager.watchedStateMap(for: ids).filter(\.value).keys)
+    }
+
+    /// A thumbnail failed to load. Reddit's preview URLs are signed, and the long cache TTL
+    /// means a rotated signature would otherwise leave a permanently broken image. Marking
+    /// the one post stale gets it re-resolved on the next refresh without expiring the
+    /// whole queue on a timer.
+    func reportThumbnailFailure(for postID: String) {
+        provider.invalidateThumbnail(postID: postID)
     }
 
     /// Re-poll the queue file without showing a loading spinner. Used by EmptyQueueView.

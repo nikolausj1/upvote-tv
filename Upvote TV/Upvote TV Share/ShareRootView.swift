@@ -150,7 +150,7 @@ struct ShareRootView: View {
         // to the canonical /comments/<id> URL before classifying.
         let resolvedURL = await ShareInputResolver.resolveRedditShortlinkIfNeeded(url)
 
-        guard let item = URLClassifier.classify(resolvedURL) else {
+        guard var item = URLClassifier.classify(resolvedURL) else {
             fail("Only Reddit posts and YouTube videos can be added.\n\n\(resolvedURL.absoluteString)")
             return
         }
@@ -175,6 +175,16 @@ struct ShareRootView: View {
             scheduleAutoDismiss()
             return
         }
+
+        // Resolve metadata here, on the phone, rather than leaving it to the TV.
+        //
+        // Reddit meters on a per-IP unit budget (see `RedditRateLimiter`), and the TV's
+        // problem is that it wants the whole queue at once. Resolving at share time spends
+        // exactly one request, at the moment a human deliberately shared something, which
+        // is the least bursty possible shape. Best effort only: on failure we write the
+        // item without metadata and the TV resolves it later exactly as before, so a
+        // flaky phone network can never cost you a share.
+        item.metadata = await ShareTimeResolver().resolve(item)
 
         // Prepend so newest sharedAt is first (tvOS sorts by sharedAt anyway, but
         // writing in order is easier to debug in the Gist).

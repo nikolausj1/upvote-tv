@@ -149,6 +149,20 @@ struct GistQueueClient {
 
     // MARK: - Private helpers
 
+    // MARK: - Testing seams
+
+    /// Encode then decode, so tests can prove the wire format survives a round trip
+    /// without standing up a fake GitHub.
+    func roundTripForTesting(_ items: [QueueItem]) throws -> [QueueItem] {
+        try decodeQueueItems(from: encodeQueueItems(items))
+    }
+
+    /// Decode a literal queue file, so tests can pin the handling of older schema
+    /// versions and of malformed input.
+    func decodeForTesting(_ data: Data) throws -> [QueueItem] {
+        try decodeQueueItems(from: data)
+    }
+
     private func requireConfig() throws -> (String, String) {
         guard let id = gistID, !id.isEmpty,
               let token = token, !token.isEmpty else {
@@ -158,19 +172,47 @@ struct GistQueueClient {
         return (id, token)
     }
 
+    /// Wire shape of one queue entry.
+    ///
+    /// `metadata` arrived with schema v2. Every field in it is optional on the wire, and
+    /// the property itself is optional, so a v1 file (no metadata anywhere) decodes
+    /// without special-casing and a v2 file read by an older build simply ignores it.
+    private struct ItemDTO: Codable {
+        let id: String
+        let url: String
+        let source: String
+        let sharedAt: String
+        var metadata: MetadataDTO?
+    }
+
+    private struct MetadataDTO: Codable {
+        var title: String
+        var subreddit: String?
+        var author: String?
+        var publishedAt: String?
+        var postType: String
+        var thumbnailURL: String?
+        var mediaURL: String?
+        var outboundURL: String?
+        var domain: String?
+        var resolvedAt: String
+    }
+
+    private struct Envelope: Codable {
+        let version: Int
+        let items: [ItemDTO]
+    }
+
+    private static func makeISOFormatters() -> (fractional: ISO8601DateFormatter, plain: ISO8601DateFormatter) {
+        let iso = ISO8601DateFormatter()
+        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let isoPlain = ISO8601DateFormatter()
+        isoPlain.formatOptions = [.withInternetDateTime]
+        return (iso, isoPlain)
+    }
+
     /// Decode the stored JSON into `[QueueItem]`. Tolerant of ISO8601 with/without fractional seconds.
     private func decodeQueueItems(from data: Data) throws -> [QueueItem] {
-        struct Envelope: Decodable {
-            let version: Int
-            let items: [ItemDTO]
-        }
-        struct ItemDTO: Decodable {
-            let id: String
-            let url: String
-            let source: String
-            let sharedAt: String
-        }
-
         let envelope: Envelope
         do {
             envelope = try JSONDecoder().decode(Envelope.self, from: data)
@@ -178,44 +220,68 @@ struct GistQueueClient {
             throw ClientError.badResponse
         }
 
-        let iso = ISO8601DateFormatter()
-        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let isoPlain = ISO8601DateFormatter()
-        isoPlain.formatOptions = [.withInternetDateTime]
+        let (iso, isoPlain) = Self.makeISOFormatters()
+        func date(_ string: String?) -> Date? {
+            guard let string else { return nil }
+            return iso.date(from: string) ?? isoPlain.date(from: string)
+        }
 
         return envelope.items.compactMap { dto in
             guard let url = URL(string: dto.url),
                   let source = QueueSource(rawValue: dto.source) else {
                 return nil
             }
-            let shared = iso.date(from: dto.sharedAt) ?? isoPlain.date(from: dto.sharedAt) ?? Date()
-            return QueueItem(id: dto.id, url: url, source: source, sharedAt: shared)
+            let shared = date(dto.sharedAt) ?? Date()
+
+            var metadata: ResolvedMetadata?
+            // Anything malformed in the metadata block is dropped rather than failing the
+            // whole item: the TV can always re-resolve, but a lost queue entry is gone.
+            if let dtoMeta = dto.metadata,
+               let postType = PostType(rawValue: dtoMeta.postType),
+               let resolvedAt = date(dtoMeta.resolvedAt) {
+                metadata = ResolvedMetadata(
+                    title: dtoMeta.title,
+                    subreddit: dtoMeta.subreddit,
+                    author: dtoMeta.author,
+                    publishedAt: date(dtoMeta.publishedAt),
+                    postType: postType,
+                    thumbnailURL: dtoMeta.thumbnailURL.flatMap { URL(string: $0) },
+                    mediaURL: dtoMeta.mediaURL.flatMap { URL(string: $0) },
+                    outboundURL: dtoMeta.outboundURL.flatMap { URL(string: $0) },
+                    domain: dtoMeta.domain,
+                    resolvedAt: resolvedAt
+                )
+            }
+
+            return QueueItem(id: dto.id, url: url, source: source, sharedAt: shared, metadata: metadata)
         }
     }
 
     private func encodeQueueItems(_ items: [QueueItem]) throws -> Data {
-        struct Envelope: Encodable {
-            let version: Int
-            let items: [ItemDTO]
-        }
-        struct ItemDTO: Encodable {
-            let id: String
-            let url: String
-            let source: String
-            let sharedAt: String
-        }
-
-        let iso = ISO8601DateFormatter()
-        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let (iso, _) = Self.makeISOFormatters()
 
         let envelope = Envelope(
             version: AppConfig.queueSchemaVersion,
-            items: items.map {
+            items: items.map { item in
                 ItemDTO(
-                    id: $0.id,
-                    url: $0.url.absoluteString,
-                    source: $0.source.rawValue,
-                    sharedAt: iso.string(from: $0.sharedAt)
+                    id: item.id,
+                    url: item.url.absoluteString,
+                    source: item.source.rawValue,
+                    sharedAt: iso.string(from: item.sharedAt),
+                    metadata: item.metadata.map { meta in
+                        MetadataDTO(
+                            title: meta.title,
+                            subreddit: meta.subreddit,
+                            author: meta.author,
+                            publishedAt: meta.publishedAt.map { iso.string(from: $0) },
+                            postType: meta.postType.rawValue,
+                            thumbnailURL: meta.thumbnailURL?.absoluteString,
+                            mediaURL: meta.mediaURL?.absoluteString,
+                            outboundURL: meta.outboundURL?.absoluteString,
+                            domain: meta.domain,
+                            resolvedAt: iso.string(from: meta.resolvedAt)
+                        )
+                    }
                 )
             }
         )
