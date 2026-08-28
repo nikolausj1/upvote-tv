@@ -15,13 +15,14 @@ import Foundation
 ///
 /// **The OpenGraph preview page is a fallback only.** Fetching the post's HTML with a
 /// crawler-style User-Agent (`AppConfig.redditPreviewUserAgent`) yields the same social
-/// unfurl iMessage/Slack use, but it costs roughly 2x more rate-limit budget than the RSS
-/// feed (measured 2026-08-27, after Reddit repriced both: ~2500 units vs ~1200; previously
-/// ~230-780 vs ~150-350) while carrying strictly less information. It is therefore only
-/// fetched when RSS fails outright or returns no usable title.
+/// unfurl iMessage/Slack use, but it costs roughly 6x more rate-limit budget than the RSS
+/// feed (burst-measured 2026-08-27: ~190 units including its 301 hop, vs ~33) while
+/// carrying strictly less information. It is therefore only fetched when RSS fails
+/// outright or returns no usable title.
 ///
-/// **Rate limiting is the whole ballgame.** Reddit meters these endpoints on a ~9000-unit
-/// per-60-second per-IP budget, so a queue of 50+ posts cannot be hydrated in one window.
+/// **Rate limiting is a real constraint, not the whole ballgame.** Reddit meters these
+/// endpoints on a ~9000-unit per-60-second per-IP budget; at ~33 units a feed, a 50-post
+/// queue costs ~1650 and fits inside one window.
 /// Every request goes through `RedditRateLimiter.shared`, which paces the fleet and waits
 /// out the window instead of retrying into a 429. See that type for the measurements.
 ///
