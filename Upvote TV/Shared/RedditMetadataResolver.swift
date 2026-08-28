@@ -15,9 +15,10 @@ import Foundation
 ///
 /// **The OpenGraph preview page is a fallback only.** Fetching the post's HTML with a
 /// crawler-style User-Agent (`AppConfig.redditPreviewUserAgent`) yields the same social
-/// unfurl iMessage/Slack use, but it costs 2-3x more rate-limit budget than the RSS feed
-/// (measured: ~230-780 units vs ~150-350) while carrying strictly less information. It is
-/// therefore only fetched when RSS fails outright or returns no usable title.
+/// unfurl iMessage/Slack use, but it costs roughly 2x more rate-limit budget than the RSS
+/// feed (measured 2026-08-27, after Reddit repriced both: ~2500 units vs ~1200; previously
+/// ~230-780 vs ~150-350) while carrying strictly less information. It is therefore only
+/// fetched when RSS fails outright or returns no usable title.
 ///
 /// **Rate limiting is the whole ballgame.** Reddit meters these endpoints on a ~9000-unit
 /// per-60-second per-IP budget, so a queue of 50+ posts cannot be hydrated in one window.
@@ -66,16 +67,20 @@ struct RedditMetadataResolver {
             throw MetadataResolveError.unreachable
         }
 
-        return assemble(item: item, og: og, media: media)
+        return try assemble(item: item, og: og, media: media)
     }
 
     // MARK: - Assembly
 
-    private func assemble(item: QueueItem, og: OpenGraph?, media: RedditMedia?) -> ResolvedMetadata {
+    private func assemble(item: QueueItem, og: OpenGraph?, media: RedditMedia?) throws -> ResolvedMetadata {
         // RSS titles are the bare post title; OG's come off the page `<title>` and need the
-        // " : r/sub" suffix stripped. Both parsers return nil (never "") on a miss, so the
-        // raw-URL fallback can only win when neither source produced anything.
-        let title = media?.title ?? og?.title ?? item.url.absoluteString
+        // " : r/sub" suffix stripped. Both parsers return nil (never "") on a miss. Neither
+        // resolving is treated as a total miss — the caller falls back to a stale cache
+        // entry or an un-cached raw-URL card and retries next refresh, rather than caching
+        // the URL itself as the title for a full 30 days.
+        guard let title = media?.title ?? og?.title else {
+            throw MetadataResolveError.unreachable
+        }
         // Prefer RSS for the subreddit — `<category term=…>` is exact, where the OG path
         // recovers casing from a page title.
         let subreddit = media?.subreddit ?? og?.subreddit
@@ -133,7 +138,8 @@ struct RedditMetadataResolver {
         // Everything past the first <entry> was being downloaded, charged for, and thrown
         // away.
         guard let url = URL(string: "https://www.reddit.com/comments/\(item.id).rss?limit=1"),
-              let rss = await fetchString(url, accept: "application/atom+xml,application/xml", before: deadline) else {
+              let rss = await fetchString(url, accept: "application/atom+xml,application/xml", before: deadline,
+                                           validate: Self.looksLikeAtomFeed) else {
             return nil
         }
 
@@ -208,14 +214,17 @@ struct RedditMetadataResolver {
             return nil
         }
         // No retry here — this is a bonus thumbnail, so a throttle just means "not today".
-        guard case .success(let html) = await performGET(url, accept: "text/html,application/xhtml+xml") else {
+        guard case .success(let html, _) = await performGET(url, accept: "text/html,application/xhtml+xml") else {
             return nil
         }
         return Self.parseOpenGraph(html)
     }
 
     private static func parseOpenGraph(_ html: String) -> OpenGraph? {
-        let pageTitle = tagTitle(in: html)
+        // A page with no `og:` markup at all isn't a real unfurl — likely a bot-check or
+        // block page — so its bare <title> must not be read as the post's title.
+        let hasOpenGraphMarkup = html.range(of: "property=\"og:", options: .caseInsensitive) != nil
+        let pageTitle = hasOpenGraphMarkup ? tagTitle(in: html) : nil
         let ogImage = metaContent(in: html, key: "og:image", attribute: "property")
             ?? metaContent(in: html, key: "twitter:image", attribute: "name")
         let ogURL = metaContent(in: html, key: "og:url", attribute: "property")
@@ -255,7 +264,7 @@ struct RedditMetadataResolver {
     // MARK: - Networking
 
     private enum FetchOutcome {
-        case success(String)
+        case success(body: String, contentType: String?)
         /// Reddit refused this request for budget reasons (429).
         case throttled
         case failed
@@ -263,7 +272,13 @@ struct RedditMetadataResolver {
 
     /// Performs a rate-limited GET, waiting for budget if necessary. Returns nil on any
     /// failure — callers are best-effort and `resolve` decides if the post is a total loss.
-    private func fetchString(_ url: URL, accept: String, before deadline: Date) async -> String? {
+    /// `validate` gets a look at the body and content-type before it's handed back, so a
+    /// 200 that isn't actually the expected document (a block page served on the RSS path,
+    /// say) can be treated as a miss instead of parsed as if it were real.
+    private func fetchString(
+        _ url: URL, accept: String, before deadline: Date,
+        validate: (String, String?) -> Bool = { _, _ in true }
+    ) async -> String? {
         // A 429 means this request arrived after the budget was already gone — typically
         // because a previous run, another device on the same IP, or the app's own cold
         // start spent the window before the limiter had any reading to go on. That
@@ -273,7 +288,8 @@ struct RedditMetadataResolver {
         for _ in 0..<AppConfig.redditThrottleRetries {
             guard await limiter.acquire(before: deadline) else { return nil }
             switch await performGET(url, accept: accept) {
-            case .success(let body): return body
+            case .success(let body, let contentType):
+                return validate(body, contentType) ? body : nil
             case .throttled: continue
             case .failed: return nil
             }
@@ -300,7 +316,17 @@ struct RedditMetadataResolver {
         if let http, http.statusCode == 429 { return .throttled }
         if let http, http.statusCode != 200 { return .failed }
         guard let body = String(data: data, encoding: .utf8) else { return .failed }
-        return .success(body)
+        return .success(body: body, contentType: http?.value(forHTTPHeaderField: "Content-Type"))
+    }
+
+    /// A 200 on the RSS URL isn't proof it's actually the Atom feed — a network-policy block
+    /// page comes back with the same status. Require either an XML content-type or the
+    /// `<feed` opening tag near the top of the body before trusting the response enough to
+    /// parse it; otherwise its bare `<title>` (a block-page heading, not a post title) would
+    /// get read as if it were the post's.
+    static func looksLikeAtomFeed(body: String, contentType: String?) -> Bool {
+        if let contentType, contentType.lowercased().contains("xml") { return true }
+        return body.prefix(200).contains("<feed")
     }
 
     // MARK: - HTML / XML parsing
@@ -314,11 +340,17 @@ struct RedditMetadataResolver {
         return decoded.isEmpty ? nil : decoded
     }
 
-    /// Reddit puts `[deleted]` or `[removed]` in the feed for posts that are gone.
+    /// Reddit puts `[deleted]` or `[removed]` in the feed for posts that are gone. A
+    /// moderator or automod removal can also show up dressed differently — `[ Removed by
+    /// moderator ]`, `[ Removed by Reddit ]` — so also catch anything fully bracketed that
+    /// mentions removal or deletion, without flagging a real title that merely contains
+    /// those words.
     static func isUnavailableTitle(_ title: String?) -> Bool {
         guard let title else { return false }
         let normalized = title.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        return normalized == "[deleted]" || normalized == "[removed]"
+        if normalized == "[deleted]" || normalized == "[removed]" { return true }
+        guard normalized.hasPrefix("["), normalized.hasSuffix("]") else { return false }
+        return normalized.contains("removed") || normalized.contains("deleted")
     }
 
     /// Returns the decoded `content` of a `<meta>` tag matching `attribute="key"`,

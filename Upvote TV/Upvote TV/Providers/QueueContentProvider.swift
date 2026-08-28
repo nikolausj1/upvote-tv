@@ -21,6 +21,19 @@ final class QueueContentProvider: ContentProvider {
     private let redditResolver: RedditMetadataResolver
     private let youtubeResolver: YouTubeMetadataResolver
     private let cache: MetadataCache
+    /// Thumbnail-failure reports honored so far this refresh cycle. Reset at the start of
+    /// each `hydrate`. Caps how much re-resolve work a burst of image failures can trigger —
+    /// see `invalidateThumbnail`.
+    private var honoredThumbnailFailures = 0
+    /// A single refresh cannot honor more than this many thumbnail-failure reports. A wall
+    /// of stale signed URLs coming back at once (e.g. after a long time away) would
+    /// otherwise mark most of the queue stale in one pass and trigger a re-resolve burst
+    /// this app is built to avoid. Excess reports are simply dropped; the rot they'd flag
+    /// gets caught on a later refresh instead.
+    private static let maxThumbnailFailuresPerRefresh = 10
+    /// A thumbnail failing this soon after it was resolved is almost certainly a transient
+    /// network hiccup, not a rotted signed URL — signed preview URLs don't expire that fast.
+    private static let minAgeForThumbnailFailure: TimeInterval = 24 * 60 * 60
 
     init(
         modelContext: ModelContext,
@@ -54,6 +67,10 @@ final class QueueContentProvider: ContentProvider {
         deprioritizing watchedIDs: Set<String>,
         into continuation: AsyncThrowingStream<[Post], Error>.Continuation
     ) async throws {
+        // A fresh cap for every refresh — thumbnail failures reported during the previous
+        // one don't count against this one.
+        honoredThumbnailFailures = 0
+
         let items = try await fetchQueue()
 
         if items.isEmpty {
@@ -188,6 +205,15 @@ final class QueueContentProvider: ContentProvider {
     }
 
     func invalidateThumbnail(postID: String) {
+        guard honoredThumbnailFailures < Self.maxThumbnailFailuresPerRefresh else { return }
+        // A post resolved moments ago failing to load its image is a network hiccup, not
+        // URL rot — only a cached entry old enough for its signed preview URL to plausibly
+        // have expired is worth spending a re-resolve on.
+        guard let resolvedAt = cache.fetch(postID: postID)?.resolvedAt,
+              Date().timeIntervalSince(resolvedAt) > Self.minAgeForThumbnailFailure else {
+            return
+        }
+        honoredThumbnailFailures += 1
         cache.markStale(postID: postID)
     }
 

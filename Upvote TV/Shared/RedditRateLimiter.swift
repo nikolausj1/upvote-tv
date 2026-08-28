@@ -5,10 +5,11 @@ import Foundation
 /// **Why this exists.** Reddit meters the preview and RSS endpoints with a *unit budget*,
 /// not a request count. Every response carries `x-ratelimit-used` / `-remaining` / `-reset`,
 /// the budget is ~9000 units per rolling 60-second window per IP, and each request costs a
-/// variable amount — measured on the endpoints this app uses: RSS ~150-350 units, the
-/// heavier HTML preview page ~230-780. A queue of 50+ posts simply cannot be hydrated
-/// inside one window, so firing every resolve at once burns the budget in a few seconds
-/// and every remaining post comes back 429 and renders as a raw-URL fallback card.
+/// variable amount — measured on the endpoints this app uses: RSS ~1200 units, the heavier
+/// HTML preview page ~2500 (re-measured 2026-08-27 after Reddit repriced both; previously
+/// ~150-350 / ~230-780). A queue of 50+ posts simply cannot be hydrated inside one window,
+/// so firing every resolve at once burns the budget in a few seconds and every remaining
+/// post comes back 429 and renders as a raw-URL fallback card.
 ///
 /// **How it works.** Every Reddit request passes through `acquire(before:)` and hands its
 /// response back via `record(_:)`. The governor tracks the reported budget, discounts the
@@ -32,14 +33,21 @@ actor RedditRateLimiter {
     /// budget and pile through the gate together.
     private var outstanding: Int = 0
 
-    /// Conservative per-request cost estimate for in-flight requests, set to the top of
-    /// the measured range so a burst under-spends rather than overshoots.
-    private static let assumedRequestCost: Double = 800
-    /// Units held back so an unlucky burst still lands inside the budget.
-    private static let reserve: Double = 1200
+    /// Conservative per-request cost estimate for in-flight requests. Sized to the RSS feed
+    /// — the common, essential request — rather than the heavier OG fallback page; the
+    /// opportunistic path below carries its own larger reserve to cover that heavier cost.
+    /// Re-measured 2026-08-27 after Reddit repriced both endpoints (previously 800, when
+    /// the feed cost ~150-350 and the HTML page ~230-780; now ~1200 and ~2500 respectively).
+    private static let assumedRequestCost: Double = 1200
+    /// Units held back so an unlucky burst still lands inside the budget. Re-measured
+    /// 2026-08-27 alongside `assumedRequestCost` (was 1200) — large enough that even an
+    /// unaccounted heavier OG-page request landing through this gate doesn't overshoot.
+    private static let reserve: Double = 2500
     /// The much larger cushion optional work must clear. Enrichment that only improves a
     /// card (a thumbnail) must never crowd out the fetches that make it render at all.
-    private static let opportunisticReserve: Double = 3500
+    /// Must comfortably clear the ~2500-unit OG page cost the opportunistic fetch actually
+    /// spends (was 3500, sized against the old ~780-unit ceiling).
+    private static let opportunisticReserve: Double = 4500
     /// Used when Reddit 429s without telling us when the window resets.
     private static let blindCooldown: TimeInterval = 20
 
@@ -52,6 +60,9 @@ actor RedditRateLimiter {
     struct Persistence: Sendable {
         var load: @Sendable () -> (remaining: Double, resetsAt: Date)?
         var save: @Sendable (Double, Date) -> Void
+        /// Removes any stored reading. Called when the in-memory window is dropped, so a
+        /// stale or poisoned value never outlives the state it was cached alongside.
+        var clear: @Sendable () -> Void = {}
 
         static let standard = Persistence(
             load: {
@@ -64,6 +75,11 @@ actor RedditRateLimiter {
                 let defaults = UserDefaults.standard
                 defaults.set(remaining, forKey: Keys.remaining)
                 defaults.set(resetsAt, forKey: Keys.resetsAt)
+            },
+            clear: {
+                let defaults = UserDefaults.standard
+                defaults.removeObject(forKey: Keys.remaining)
+                defaults.removeObject(forKey: Keys.resetsAt)
             }
         )
 
@@ -75,11 +91,19 @@ actor RedditRateLimiter {
 
     init(persistence: Persistence? = nil) {
         self.persistence = persistence
-        // A stored window that has already rolled over tells us nothing; only carry one
-        // forward if it is still open.
-        if let stored = persistence?.load(), stored.resetsAt > Date() {
-            remaining = stored.remaining
-            windowResetsAt = stored.resetsAt
+        // A stored window has to fall inside a plausible rolling-60s range. Already rolled
+        // over (in the past) tells us nothing; more than 120s out is not a real window at
+        // all — it's a poisoned reading (e.g. a reset offset that was never clamped) that
+        // would otherwise refuse every request forever. Either way, don't adopt it, and
+        // don't leave it sitting in UserDefaults to be reread next launch.
+        if let stored = persistence?.load() {
+            let now = Date()
+            if stored.resetsAt > now && stored.resetsAt <= now.addingTimeInterval(120) {
+                remaining = stored.remaining
+                windowResetsAt = stored.resetsAt
+            } else {
+                persistence?.clear()
+            }
         }
     }
 
@@ -108,10 +132,13 @@ actor RedditRateLimiter {
             if Task.isCancelled { return false }
 
             // Window has rolled over — drop the stale reading and re-evaluate. Other tasks
-            // may have woken and done this already, which is harmless.
+            // may have woken and done this already, which is harmless. Clear the persisted
+            // copy too, so a crash before the next `record()` can't hand a cold launch an
+            // exhausted reading from a window that is already gone.
             if Date() >= resumeAt {
                 remaining = nil
                 windowResetsAt = nil
+                persistence?.clear()
             }
         }
     }
@@ -133,8 +160,12 @@ actor RedditRateLimiter {
 
         guard let response else { return }
 
-        if let resetValue = header(response, "x-ratelimit-reset"), let seconds = Double(resetValue) {
-            windowResetsAt = Date().addingTimeInterval(seconds)
+        // Clamp to the same 120s ceiling as the 429 retry-after below: a rolling 60s window
+        // can never legitimately report a reset further out than that, and adopting a bad
+        // value here (a malformed header, a proxy quirk) would otherwise refuse every
+        // request until real time catches up to it.
+        if let resetValue = header(response, "x-ratelimit-reset"), let seconds = Double(resetValue), seconds > 0 {
+            windowResetsAt = Date().addingTimeInterval(min(seconds, 120))
         }
 
         if response.statusCode == 429 {

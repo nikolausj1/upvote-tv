@@ -77,7 +77,7 @@ struct PostCardRow: View {
             // Never successfully resolved — fallback cards are effectively stale.
             return post.postType == .unsupported && post.score == nil
         }
-        return Date().timeIntervalSince(resolvedAt) > AppConfig.cacheTTL
+        return Date().timeIntervalSince(resolvedAt) > AppConfig.cacheTTL(forPostID: post.id)
     }
 
     private var staleBadge: some View {

@@ -86,18 +86,37 @@ struct RedditRSSParsingTests {
         #expect(RedditMetadataResolver.firstMatch(
             in: sampleEntry, pattern: "v\\.redd\\.it/([A-Za-z0-9]+)", group: 1) == "2qdxn2ag2teh1")
     }
+
+    @Test func acceptsARealFeedByBodyOrContentType() {
+        #expect(RedditMetadataResolver.looksLikeAtomFeed(
+            body: "<?xml version=\"1.0\"?><feed><entry>…", contentType: nil))
+        #expect(RedditMetadataResolver.looksLikeAtomFeed(
+            body: "<feed xmlns=\"…\">", contentType: "text/html"))
+        #expect(RedditMetadataResolver.looksLikeAtomFeed(
+            body: "<html><title>Reddit</title></html>", contentType: "application/atom+xml; charset=UTF-8"))
+    }
+
+    @Test func rejectsABlockPageMasqueradingAsTheFeed() {
+        // A 200 with an HTML interstitial instead of the feed — no "<feed" up top, no XML
+        // content-type. Trusting this would read the block page's <title> as the post's.
+        #expect(!RedditMetadataResolver.looksLikeAtomFeed(
+            body: "<html><head><title>Reddit - Dive into anything</title></head></html>",
+            contentType: "text/html"))
+    }
 }
 
 // MARK: - Unavailable posts
 
 struct RedditUnavailablePostTests {
 
-    @Test(arguments: ["[deleted]", "[removed]", "  [Deleted]  ", "[REMOVED]"])
+    @Test(arguments: ["[deleted]", "[removed]", "  [Deleted]  ", "[REMOVED]",
+                       "[ Removed by moderator ]", "[ Removed by Reddit ]"])
     func recognizesGonePosts(_ title: String) {
         #expect(RedditMetadataResolver.isUnavailableTitle(title))
     }
 
-    @Test(arguments: ["Make it sloppy", "[deleted] scenes from the cutting room", "", "deleted"])
+    @Test(arguments: ["Make it sloppy", "[deleted] scenes from the cutting room", "", "deleted",
+                       "This post was removed from the front page for brigading"])
     func leavesRealTitlesAlone(_ title: String) {
         #expect(!RedditMetadataResolver.isUnavailableTitle(title))
     }
@@ -305,6 +324,20 @@ struct RedditResolveEndToEndTests {
         ])
         await #expect(throws: MetadataResolveError.self) {
             try await makeStubbedResolver().resolve(queueItem(id: "deadbeef"))
+        }
+    }
+
+    @Test func blockPageOnTheRSSEndpointIsNeverReadAsATitle() async {
+        // Reddit can serve an HTML block/interstitial page with a 200 status on the RSS
+        // URL. Before the body check, its bare <title> would have been cached as the post's
+        // title for 30 days; now it must be treated as a failed fetch, same as a 4xx.
+        StubURLProtocol.setStubs([
+            "https://www.reddit.com/comments/blocked1.rss?limit=1":
+                .init(body: "<html><head><title>Reddit - Dive into anything</title></head><body></body></html>",
+                      headers: ["Content-Type": "text/html"])
+        ])
+        await #expect(throws: MetadataResolveError.self) {
+            try await makeStubbedResolver().resolve(queueItem(id: "blocked1"))
         }
     }
 
@@ -522,16 +555,17 @@ struct RedditRateLimiterTests {
     @Test func reservesHeadroomForInFlightRequests() async {
         let limiter = RedditRateLimiter()
         #expect(await limiter.acquire(before: Date().addingTimeInterval(5)))
-        // 2600 units left and nothing in flight — enough for the 1200 reserve on paper,
-        // but each admitted request is charged an estimated 800 until its response lands.
+        // 4200 units left and nothing in flight — enough for the 2500 reserve on paper,
+        // but each admitted request is charged an estimated 1200 until its response lands
+        // (repriced 2026-08-27; see RedditRateLimiter).
         await limiter.record(makeResponse(status: 200, headers: [
-            "x-ratelimit-remaining": "2600", "x-ratelimit-reset": "40"
+            "x-ratelimit-remaining": "4200", "x-ratelimit-reset": "40"
         ]))
-        // Nothing outstanding: 2600 clears the reserve.
+        // Nothing outstanding: 4200 clears the reserve.
         #expect(await limiter.acquire(before: Date().addingTimeInterval(5)))
-        // One outstanding: projected 2600 - 800 = 1800, still clear.
+        // One outstanding: projected 4200 - 1200 = 3000, still clear.
         #expect(await limiter.acquire(before: Date().addingTimeInterval(5)))
-        // Two outstanding: projected 2600 - 1600 = 1000, under the reserve — hold the line
+        // Two outstanding: projected 4200 - 2400 = 1800, under the reserve — hold the line
         // rather than let a burst spend budget Reddit has not reported back yet.
         let admitted = await limiter.acquire(before: Date().addingTimeInterval(0.5))
         #expect(!admitted)
@@ -543,8 +577,9 @@ struct RedditRateLimiterTests {
         await limiter.record(makeResponse(status: 200, headers: [
             "x-ratelimit-remaining": "3000", "x-ratelimit-reset": "40"
         ]))
-        // 3000 units is plenty for a title fetch but under the opportunistic cushion, so a
-        // thumbnail top-up must stand down while essential resolves continue.
+        // 3000 units clears the 2500 reserve for a title fetch but sits under the 4500
+        // opportunistic cushion, so a thumbnail top-up must stand down while essential
+        // resolves continue.
         let opportunistic = await limiter.acquireIfBudgetToSpare()
         #expect(!opportunistic)
         #expect(await limiter.acquire(before: Date().addingTimeInterval(5)))
@@ -569,6 +604,37 @@ struct RedditRateLimiterTests {
             save: { _, _ in }
         ))
         #expect(await limiter.acquire(before: Date().addingTimeInterval(5)))
+    }
+
+    @Test func ignoresAPersistedWindowFarInTheFuture() async {
+        // A rolling 60s window can never legitimately reset an hour from now. Adopting a
+        // reading like this (e.g. from an unclamped reset offset written before this fix)
+        // would refuse every request until real time caught up to it — this is the
+        // poisoned-state bug that broke resolution outright.
+        let limiter = RedditRateLimiter(persistence: .init(
+            load: { (remaining: 0, resetsAt: Date().addingTimeInterval(3600)) },
+            save: { _, _ in }
+        ))
+        #expect(await limiter.acquire(before: Date().addingTimeInterval(5)))
+    }
+
+    @Test func clampsAReportedResetOffsetToTheWindowCeiling() async throws {
+        // Reddit (or a malformed response) reporting an absurd x-ratelimit-reset must not be
+        // taken at face value — same failure mode as a poisoned persisted reading.
+        final class Box: @unchecked Sendable { var saved: (Double, Date)? }
+        let box = Box()
+        let limiter = RedditRateLimiter(persistence: .init(
+            load: { nil },
+            save: { remaining, resetsAt in box.saved = (remaining, resetsAt) }
+        ))
+        _ = await limiter.acquire(before: Date().addingTimeInterval(5))
+        await limiter.record(makeResponse(status: 200, headers: [
+            "x-ratelimit-remaining": "10", "x-ratelimit-reset": "999999"
+        ]))
+        let diagnostics = await limiter.diagnostics
+        let resetsAt = try #require(diagnostics.windowResetsAt)
+        #expect(resetsAt <= Date().addingTimeInterval(120.5))
+        #expect(box.saved?.1 ?? Date.distantFuture <= Date().addingTimeInterval(120.5))
     }
 
     @Test func savesWindowStateWhenItLearnsSomething() async {
