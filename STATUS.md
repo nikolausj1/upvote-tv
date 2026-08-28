@@ -19,12 +19,14 @@ Live (all six planned v1 phases are done and shipped; Phase 7's optional Reddit 
 
 ## Health
 
-🟡 Recovering. Reddit resolution silently died on the Apple TV in late August: the rate limiter could persist a poisoned far-future reset time and then refuse every request forever, and Reddit quadrupled per-request rate-limit costs (~1,200 units/feed vs ~300 at tuning time), so mass cache invalidation from rotting thumbnail URLs collapsed refreshes into 429s. A fix landed 2026-08-27 (uncommitted on `fix/reddit-rate-limiting-and-hydration`): the limiter clamps and self-heals poisoned state on launch, block pages and moderator-removed titles are detected instead of cached as titles, thumbnail-failure invalidation is age-gated and capped, and cost constants were re-measured. All three targets build; unit tests pass. Needs a deploy to the Apple TV to take effect.
+🟡 Recovering. Reddit resolution silently died on the Apple TV in late August: the rate limiter could persist a poisoned far-future reset time and then refuse every request forever, and Reddit quadrupled per-request rate-limit costs (~1,200 units/feed vs ~300 at tuning time), so mass cache invalidation from rotting thumbnail URLs collapsed refreshes into 429s. The fix (commit `d29192c` on `fix/reddit-rate-limiting-and-hydration`, branch not yet merged) clamps and self-heals poisoned limiter state on launch, detects block pages and moderator-removed titles instead of caching them as titles, age-gates and caps thumbnail-failure invalidation, and re-measures the cost constants. Built, signed, installed, and launched on the living-room Apple TV on 2026-08-27. Back to green once the queue visibly re-hydrates.
 
 ## Waiting on Me
 
-- [ ] **Deploy the 2026-08-27 resolver/limiter fix to the Apple TV** (~10 min)
-      - unblocks: Reddit posts resolving again. Commit the working tree on `fix/reddit-rate-limiting-and-hydration`, build to the Apple TV, and relaunch; the new build discards the jammed rate-limiter state automatically
+- [ ] **Watch the Browse list for a few minutes and confirm titles fill in** (~5 min)
+      - unblocks: confirming the 2026-08-27 fix worked in the real world. The queue re-resolves at roughly 5 requests/minute under the repriced Reddit budget, so a full 59-item backlog takes several refresh cycles to fill in. Posts still showing raw URLs after that are worth reporting
+- [ ] **Merge `fix/reddit-rate-limiting-and-hydration` into `main`** (~2 min)
+      - unblocks: getting the fix off a branch. Deployed and running on the Apple TV, but the branch is unmerged
 - [ ] **Submit the Reddit Data API application** (~15 min)
       - unblocks: gallery posts, score, and the NSFW flag for Reddit items, plus a documented rate limit instead of an undocumented shared per-IP budget. A submission-ready draft is at `docs/Reddit-Data-API-Application.md`; it addresses the "lacks necessary details" rejection. Review the numbers, then submit.
 - [ ] **Share one Reddit post from an iPhone to confirm share-time metadata writes correctly** (~2 min)

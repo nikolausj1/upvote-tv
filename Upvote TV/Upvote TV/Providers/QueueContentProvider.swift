@@ -158,8 +158,19 @@ final class QueueContentProvider: ContentProvider {
                 switch result {
                 case .success(let metadata):
                     let post = Self.post(from: metadata, item: item)
-                    cache.store(post)
-                    resolved[id] = post
+                    // Never let a removal tombstone overwrite metadata we already have.
+                    // Reddit strips the title, thumbnail and media the moment a post is
+                    // removed, but the media URL captured while it was alive usually keeps
+                    // playing from the CDN — and once the good copy is overwritten it is
+                    // gone for good, because no endpoint serves removed content. Keeping
+                    // the old entry costs one re-resolve per TTL; storing the tombstone
+                    // costs the post.
+                    if post.isUnavailable, let previous = cached[id], !previous.isUnavailable {
+                        resolved[id] = previous
+                    } else {
+                        cache.store(post)
+                        resolved[id] = post
+                    }
                 case .failure:
                     // Keep whatever we had; a stale card beats a raw URL.
                     if let stale = cached[id] {
@@ -209,8 +220,17 @@ final class QueueContentProvider: ContentProvider {
         // A post resolved moments ago failing to load its image is a network hiccup, not
         // URL rot — only a cached entry old enough for its signed preview URL to plausibly
         // have expired is worth spending a re-resolve on.
-        guard let resolvedAt = cache.fetch(postID: postID)?.resolvedAt,
-              Date().timeIntervalSince(resolvedAt) > Self.minAgeForThumbnailFailure else {
+        //
+        // The upper bound matters just as much: `markStale` writes `.distantPast`, so a
+        // post already marked would satisfy an age check forever and re-report on every
+        // `.onAppear`. A handful of permanently-broken images would then burn the whole
+        // per-refresh cap and starve the posts a re-resolve could actually fix. An entry
+        // already past its TTL is due for re-resolution regardless, so marking it is a
+        // no-op worth skipping.
+        guard let resolvedAt = cache.fetch(postID: postID)?.resolvedAt else { return }
+        let age = Date().timeIntervalSince(resolvedAt)
+        guard age > Self.minAgeForThumbnailFailure,
+              age < AppConfig.cacheTTL(forPostID: postID) else {
             return
         }
         honoredThumbnailFailures += 1

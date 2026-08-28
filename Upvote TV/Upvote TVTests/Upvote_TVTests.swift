@@ -555,17 +555,16 @@ struct RedditRateLimiterTests {
     @Test func reservesHeadroomForInFlightRequests() async {
         let limiter = RedditRateLimiter()
         #expect(await limiter.acquire(before: Date().addingTimeInterval(5)))
-        // 4200 units left and nothing in flight — enough for the 2500 reserve on paper,
-        // but each admitted request is charged an estimated 1200 until its response lands
-        // (repriced 2026-08-27; see RedditRateLimiter).
+        // 1100 units left and nothing in flight — enough for the 1000 reserve on paper, but
+        // each admitted request is charged an estimated 50 until its response lands.
         await limiter.record(makeResponse(status: 200, headers: [
-            "x-ratelimit-remaining": "4200", "x-ratelimit-reset": "40"
+            "x-ratelimit-remaining": "1100", "x-ratelimit-reset": "40"
         ]))
-        // Nothing outstanding: 4200 clears the reserve.
+        // Nothing outstanding: 1100 clears the reserve.
         #expect(await limiter.acquire(before: Date().addingTimeInterval(5)))
-        // One outstanding: projected 4200 - 1200 = 3000, still clear.
+        // One outstanding: projected 1100 - 50 = 1050, still clear.
         #expect(await limiter.acquire(before: Date().addingTimeInterval(5)))
-        // Two outstanding: projected 4200 - 2400 = 1800, under the reserve — hold the line
+        // Two outstanding: projected 1100 - 100 = 1000, not past the reserve — hold the line
         // rather than let a burst spend budget Reddit has not reported back yet.
         let admitted = await limiter.acquire(before: Date().addingTimeInterval(0.5))
         #expect(!admitted)
@@ -575,14 +574,34 @@ struct RedditRateLimiterTests {
         let limiter = RedditRateLimiter()
         #expect(await limiter.acquire(before: Date().addingTimeInterval(5)))
         await limiter.record(makeResponse(status: 200, headers: [
-            "x-ratelimit-remaining": "3000", "x-ratelimit-reset": "40"
+            "x-ratelimit-remaining": "2000", "x-ratelimit-reset": "40"
         ]))
-        // 3000 units clears the 2500 reserve for a title fetch but sits under the 4500
+        // 2000 units clears the 1000 reserve for a title fetch but sits under the 3000
         // opportunistic cushion, so a thumbnail top-up must stand down while essential
         // resolves continue.
         let opportunistic = await limiter.acquireIfBudgetToSpare()
         #expect(!opportunistic)
         #expect(await limiter.acquire(before: Date().addingTimeInterval(5)))
+    }
+
+    @Test func throttleAfterAnElapsedWindowParksInsteadOfRetryingIntoTheWall() async {
+        let limiter = RedditRateLimiter()
+        #expect(await limiter.acquire(before: Date().addingTimeInterval(5)))
+        // Learn a window that expires almost immediately, then let it lapse.
+        await limiter.record(makeResponse(status: 200, headers: [
+            "x-ratelimit-remaining": "5000", "x-ratelimit-reset": "1"
+        ]))
+        try? await Task.sleep(for: .seconds(1.2))
+
+        // Now a 429 carrying no usable hint, with the stored reset already in the past.
+        // Left there, `acquire` reads it as "the window already rolled over", naps its
+        // 0.25s floor, clears the budget reading and fires straight back into the wall.
+        #expect(await limiter.acquire(before: Date().addingTimeInterval(5)))
+        await limiter.record(makeResponse(status: 429, headers: [:]))
+
+        // A deadline inside the blind cooldown must now be refused, not admitted.
+        let admitted = await limiter.acquire(before: Date().addingTimeInterval(1))
+        #expect(!admitted)
     }
 
     @Test func carriesAnOpenWindowAcrossLaunches() async {

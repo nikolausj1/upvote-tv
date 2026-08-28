@@ -22,7 +22,10 @@ final class GalleryViewModel: ObservableObject {
     // MARK: - Computed state
 
     var filteredPosts: [Post] {
-        NSFWFilterService.filter(posts)
+        // Posts Reddit has confirmed are gone are dropped outright. There is no way to view
+        // one and no action worth taking on it, so leaving it in the list only costs the
+        // user a manual mark-watched or remove.
+        NSFWFilterService.filter(posts).filter { !$0.isUnavailable }
     }
 
     var unwatchedPosts: [Post] {
@@ -72,9 +75,11 @@ final class GalleryViewModel: ObservableObject {
         }
     }
 
-    /// The queue is accessible but has no items. Browse view renders EmptyQueueView.
+    /// The queue is accessible but has nothing to show. Browse view renders EmptyQueueView.
+    /// Reads the filtered list, not the raw one: a queue holding only removed posts (or only
+    /// NSFW ones with the filter on) renders nothing, and a blank list reads as a bug.
     var showEmptyQueue: Bool {
-        !isLoading && loadError == nil && hasAttemptedLoad && posts.isEmpty
+        !isLoading && loadError == nil && hasAttemptedLoad && filteredPosts.isEmpty
     }
 
     // MARK: - Debug

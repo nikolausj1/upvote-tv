@@ -33,21 +33,24 @@ actor RedditRateLimiter {
     /// budget and pile through the gate together.
     private var outstanding: Int = 0
 
-    /// Conservative per-request cost estimate for in-flight requests. Sized to the RSS feed
-    /// — the common, essential request — rather than the heavier OG fallback page; the
-    /// opportunistic path below carries its own larger reserve to cover that heavier cost.
-    /// Re-measured 2026-08-27 after Reddit repriced both endpoints (previously 800, when
-    /// the feed cost ~150-350 and the HTML page ~230-780; now ~1200 and ~2500 respectively).
-    private static let assumedRequestCost: Double = 1200
-    /// Units held back so an unlucky burst still lands inside the budget. Re-measured
-    /// 2026-08-27 alongside `assumedRequestCost` (was 1200) — large enough that even an
-    /// unaccounted heavier OG-page request landing through this gate doesn't overshoot.
-    private static let reserve: Double = 2500
+    /// Conservative per-request cost estimate for in-flight requests, sized to the RSS feed
+    /// — the common, essential request.
+    ///
+    /// Measured 2026-08-27 by burst: 8 back-to-back requests inside a single window gave
+    /// consecutive `x-ratelimit-used` deltas of 29-38 units, so ~33 real, 50 to be safe.
+    /// Every earlier figure in this file's history (800, then 1200, and the ~150-350 in the
+    /// docs) came from samples spaced seconds apart, which is not a measurement: older
+    /// requests age out of the rolling window between samples and other devices on the same
+    /// IP land in the gaps, so the deltas describe the household's traffic, not ours. Only
+    /// deltas between back-to-back requests in one window mean anything.
+    private static let assumedRequestCost: Double = 50
+    /// Units held back so an unlucky burst still lands inside the budget. Four concurrent
+    /// OG-page fetches (~200 each, the expensive path) is 800, so this clears a worst-case
+    /// full-concurrency burst with room over.
+    private static let reserve: Double = 1000
     /// The much larger cushion optional work must clear. Enrichment that only improves a
     /// card (a thumbnail) must never crowd out the fetches that make it render at all.
-    /// Must comfortably clear the ~2500-unit OG page cost the opportunistic fetch actually
-    /// spends (was 3500, sized against the old ~780-unit ceiling).
-    private static let opportunisticReserve: Double = 4500
+    private static let opportunisticReserve: Double = 3000
     /// Used when Reddit 429s without telling us when the window resets.
     private static let blindCooldown: TimeInterval = 20
 
@@ -123,6 +126,13 @@ actor RedditRateLimiter {
             }
 
             // Out of budget: wait for the window to roll over rather than retry into a 429.
+            // Re-check the plausibility ceiling `init` and `record` both enforce — a clock
+            // moved backwards mid-session can push an already-adopted reset beyond anything
+            // a rolling 60s window could produce, and nothing else would ever revisit it.
+            if let stored = windowResetsAt, stored > Date().addingTimeInterval(120) {
+                windowResetsAt = nil
+                persistence?.clear()
+            }
             let resumeAt = windowResetsAt ?? Date().addingTimeInterval(Self.blindCooldown)
             guard resumeAt <= deadline else { return false }
 
@@ -172,9 +182,14 @@ actor RedditRateLimiter {
             // Reddit has cut us off. Treat the budget as spent and wait out the window;
             // prefer an explicit Retry-After if one is present.
             remaining = 0
-            if let retryValue = header(response, "retry-after"), let seconds = Double(retryValue) {
+            if let retryValue = header(response, "retry-after"), let seconds = Double(retryValue), seconds > 0 {
                 windowResetsAt = Date().addingTimeInterval(min(seconds, 120))
-            } else if windowResetsAt == nil {
+            } else if (windowResetsAt ?? .distantPast) <= Date() {
+                // A 429 with no usable hint must still park us somewhere in the future.
+                // Leaving a past timestamp here is worse than having none: `acquire` reads
+                // it as "the window already rolled over", naps its 0.25s floor, clears the
+                // budget reading, and fires straight back into the wall — the short-backoff
+                // retry loop this whole type exists to prevent.
                 windowResetsAt = Date().addingTimeInterval(Self.blindCooldown)
             }
             persist()

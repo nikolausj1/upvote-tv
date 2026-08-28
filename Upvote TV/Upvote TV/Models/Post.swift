@@ -25,3 +25,16 @@ struct Post: Identifiable, Hashable {
     let sharedAt: Date?
     let resolvedAt: Date?
 }
+
+extension Post {
+    /// Reddit has confirmed there is nothing behind this post any more — the author deleted
+    /// it, or a moderator removed it.
+    ///
+    /// Deliberately distinct from an *unresolved* post, which also carries `.unsupported`
+    /// but renders the raw URL and may be perfectly fine once a resolve succeeds. That one
+    /// must stay visible (see the graceful-degradation rule in CLAUDE.md); this one has
+    /// nothing to show and no way to ever get it, so the browse list hides it.
+    var isUnavailable: Bool {
+        postType == .unsupported && title == RedditMetadataResolver.unavailableTitle
+    }
+}
