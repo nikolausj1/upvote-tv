@@ -138,7 +138,14 @@ final class GalleryViewModel: ObservableObject {
     }
 
     /// Re-poll the queue file without showing a loading spinner. Used by EmptyQueueView.
+    ///
+    /// Only meaningful while the queue is genuinely empty. Since `showEmptyQueue` reads the
+    /// *filtered* list, this view also appears when every item is hidden (all removed, or
+    /// all NSFW with the filter on) — and there, re-hydrating every 10s would re-resolve
+    /// posts already known to be dead against a rate-limit budget shared with the whole
+    /// household. Nothing changes until someone shares something new anyway.
     func pollForNewItems() {
+        guard posts.isEmpty else { return }
         Task { await loadPosts() }
     }
 
