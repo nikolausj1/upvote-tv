@@ -1,8 +1,8 @@
 ---
 title: "STATUS - Upvote TV"
 created: 2026-07-24
-modified: 2026-08-28
-version: 1.5
+modified: 2026-08-31
+version: 1.6
 author: Claude Fable 5 (claude-fable-5)
 tags:
 ---
@@ -19,16 +19,16 @@ Live (all six planned v1 phases are done and shipped; Phase 7's optional Reddit 
 
 ## Health
 
-🟡 Recovering. Reddit resolution silently died on the Apple TV in late August. Two causes, both in `RedditRateLimiter`: it could persist a poisoned far-future reset time and then refuse every request forever across launches, and a 429 with no usable reset hint left the resume timestamp in the past, turning "wait out the window" into a 250 ms retry loop that pinned the shared budget at zero. A third supposed cause — Reddit quadrupling its rate-limit prices — was a **measurement error**: burst re-measurement gives ~33 units per RSS feed, not ~1,200, so a 59-item queue costs ~2,000 of the 9,000-unit window and fits in one pass. Fixed across four commits on `fix/reddit-rate-limiting-and-hydration` (unmerged, a clean fast-forward ahead of `main`): limiter self-heals poisoned state, always parks in the future after a 429, re-checks the plausibility ceiling in-session; cost constants corrected; block pages and moderator-removed titles no longer cached as titles; thumbnail-failure invalidation age-gated and capped; confirmed-removed posts hidden from Browse and no longer allowed to overwrite good cached metadata. Built, signed, installed and running on the living-room Apple TV. Back to green once the queue visibly re-hydrates.
+🟡 Recovering. Reddit resolution silently died on the Apple TV in late August. Two causes, both in `RedditRateLimiter`: it could persist a poisoned far-future reset time and then refuse every request forever across launches, and a 429 with no usable reset hint left the resume timestamp in the past, turning "wait out the window" into a 250 ms retry loop that pinned the shared budget at zero. A third supposed cause — Reddit quadrupling its rate-limit prices — was a **measurement error**: burst re-measurement gives ~33 units per RSS feed, not ~1,200, so a 59-item queue costs ~2,000 of the 9,000-unit window and fits in one pass. Fixed across six commits, merged into `main` as a clean fast-forward and pushed on 2026-08-31 (branch deleted): limiter self-heals poisoned state, always parks in the future after a 429, re-checks the plausibility ceiling in-session; cost constants corrected; block pages and moderator-removed titles no longer cached as titles; thumbnail-failure invalidation age-gated and capped; confirmed-removed posts hidden from Browse and no longer allowed to overwrite good cached metadata. Built, signed, installed and running on the living-room Apple TV. **Staying yellow until the Browse list is observed filling in titles on the TV** — the merge is bookkeeping and proves nothing about live resolution; only watching the real device can close this out.
 
 On 2026-08-28 all 70 remaining queue items were resolved directly against Reddit to audit the queue: 70 alive, 5 confirmed `[deleted]` (`1vx2iev`, `1vna92a`, `1u9jd5u`, `1u8k7vi`, `1u7cn6z`), which were pruned from the gist. The "[ Removed by moderator ]" cards on the TV were **stale cache, not dead posts** — those items resolve alive today and will show real titles once re-resolved.
 
 ## Waiting on Me
 
-- [ ] **Watch the Browse list for a few minutes and confirm titles fill in** (~5 min)
+- [ ] **Watch the Browse list for a few minutes and confirm titles fill in** (~5 min) — **this is the gate on Health returning to green**
       - unblocks: confirming the 2026-08-27 fix worked in the real world. At the corrected ~33 units per feed the whole 70-item queue costs ~2,300 of the 9,000-unit window, so it should hydrate in roughly one pass rather than several — though the budget is shared with everything else on the household IP. Posts still showing raw URLs after a few minutes are worth reporting
-- [ ] **Merge `fix/reddit-rate-limiting-and-hydration` into `main`** (~2 min)
-      - unblocks: getting the fix off a branch. Deployed and running on the Apple TV, but the branch is unmerged
+- [x] **Merge `fix/reddit-rate-limiting-and-hydration` into `main`** — done 2026-08-31
+      - fast-forwarded `1bd480d..54f8efe`, pushed to `origin/main`, branch deleted locally. It had never been pushed, so there was no remote branch to delete. The push also published two older `main` commits that had been sitting unpushed since 2026-08-26 (`7600a36` the OpenGraph+RSS resolver rewrite, `1bd480d` the iOS app icon)
 - [ ] **Submit the Reddit Data API application** (~15 min)
       - unblocks: gallery posts, score, and the NSFW flag for Reddit items, plus a documented rate limit instead of an undocumented shared per-IP budget. A submission-ready draft is at `docs/Reddit-Data-API-Application.md`; it addresses the "lacks necessary details" rejection. Review the numbers, then submit.
 - [ ] **Share one Reddit post from an iPhone to confirm share-time metadata writes correctly** (~2 min)
