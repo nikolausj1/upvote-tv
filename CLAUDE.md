@@ -40,8 +40,9 @@ Upvote TV/                          # Xcode workspace root
 │   ├── ResolvedMetadata.swift      # Transport/cache shape produced by the resolvers
 │   ├── PostType.swift              # .video | .image | .youtube | .link | …
 │   ├── GistQueueClient.swift       # HTTP GET/PATCH against api.github.com/gists/{id}
-│   ├── RedditMetadataResolver.swift    # RSS primary, OpenGraph fallback
-│   ├── RedditRateLimiter.swift         # Shared per-IP budget governor
+│   ├── RedditMetadataResolver.swift    # RSS primary, full post page fallback, OpenGraph last resort
+│   ├── RedditPostPage.swift            # Parser + JS-challenge solver for reddit.com/comments/{id}/
+│   ├── RedditRateLimiter.swift         # Per-IP budget governor, one instance per Reddit budget
 │   ├── YouTubeMetadataResolver.swift   # oEmbed
 │   ├── SecretsLoader.swift         # Reads Gist ID + PAT from Secrets.plist
 │   └── URLClassifier.swift         # URL → (id, source) extraction for both platforms
@@ -101,11 +102,17 @@ Reddit API (v2) code was removed between v2 and v3; there is no `Deferred/` fold
 
 ## Metadata Resolution Notes
 
-### Reddit Posts (RSS primary, OpenGraph fallback, current)
+### Reddit Posts (RSS primary, full post page fallback, OpenGraph last resort)
 
-**The public `.json` endpoint is dead.** As of ~June 2026 Reddit gated `reddit.com/comments/{id}.json` behind the Responsible Builder Policy — every request returns a "blocked due to a network policy" page regardless of User-Agent. The authenticated OAuth API needs Data API approval (applied, **denied** for "lacks necessary details"; not reapplied yet).
+**The public `.json` endpoint is dead.** As of ~June 2026 Reddit gated `reddit.com/comments/{id}.json` behind the Responsible Builder Policy — every request returns a "blocked due to a network policy" page regardless of User-Agent. The public Data API is closed to new applicants (2026-10-31) and ends for everyone in March 2027, so there is no authenticated fallback to apply for; Phase 7 is retired.
 
-Both surviving endpoints are fetched with the crawler-style User-Agent in `AppConfig.redditPreviewUserAgent`. Reddit substring-matches the `facebookexternalhit` token and serves a lightweight preview instead of a bot-verification wall.
+Three public sources remain, tried cheapest-first in `RedditMetadataResolver.resolve`; each is best-effort and the resolve throws only when none produced a title:
+
+1. **RSS feed** (`.rss?limit=1`) — primary while it lasts. **Reddit has announced it ends 2026-11-13.**
+2. **Full post page** (`reddit.com/comments/{id}/`, `RedditPostPage`) — tried whenever the feed produced no title. After the cutoff this is effectively primary.
+3. **OpenGraph preview page** — last resort for a title, and an opportunistic thumbnail top-up.
+
+The feed and OpenGraph fetches use the crawler-style User-Agent in `AppConfig.redditPreviewUserAgent`: Reddit substring-matches the `facebookexternalhit` token and serves a lightweight preview instead of a bot-verification wall. The full page is fetched with the plain `AppConfig.redditPageUserAgent` instead, because the crawler token buys exactly the media-less shell we are trying to get past.
 
 **The RSS feed (`reddit.com/comments/{id}.rss?limit=1`) is the primary source.** Measured against the live 59-item queue it resolved 59/59 with a title and subreddit. `limit=1` matters: it asks for the post plus one comment instead of the whole thread, which measured 3.5 KB instead of 33.5 KB and about half the rate-limit units, with no loss of anything the resolver reads. Everything past the first `<entry>` was being downloaded, paid for, and discarded. The feed carries:
 
@@ -115,22 +122,30 @@ Both surviving endpoints are fetched with the crawler-style User-Agent in `AppCo
 - a thumbnail (`<media:thumbnail>` on ~73% of posts, with the preview `<img>` inside the escaped `<content>` block as a second source),
 - and the actual media, so `v.redd.it` video still plays in-app via `https://v.redd.it/{id}/HLSPlaylist.m3u8`.
 
-**The OpenGraph HTML page is a fallback only.** It costs roughly 2x more rate-limit budget than the feed (see below) while carrying strictly less information, so it is fetched only when (a) RSS produced no usable title, or (b) RSS produced no thumbnail *and* the rate-limit window has budget to spare (`acquireIfBudgetToSpare`). Titles are essential; thumbnails are a bonus that must never crowd them out.
+**The full post page is the post-RSS path, and it works from a plain client.** Reddit's own web client renders the post from a `<shreddit-post>` element whose attributes carry `post-title`, `post-type`, `subreddit-name`, `author`, `created-timestamp` (six fractional digits, colon-less offset), `content-href` (the bare `https://v.redd.it/{id}`, an `i.redd.it` image, or the outbound link), `domain`, `moderation-verdict`, and a boolean `nsfw`; a `<shreddit-player src=…HLSPlaylist.m3u8?…>` carries the signed playlist, which `RedditPostPage.stableHLSURL` reduces to the same bare `https://v.redd.it/{id}/HLSPlaylist.m3u8` the RSS path has always cached. Verified 2026-10-09 against the live queue: 8/8 posts from Python, 4/4 from the Swift resolver (`resolveFromPage`), every video with a playable HLS URL, with a `UpvoteTV/1.0 (+personal)` User-Agent. The page is ~1.1 MB.
 
-**Rate limiting is a real constraint, but a far looser one than this file long claimed.** Reddit meters both endpoints on a **~9000-unit budget per rolling 60-second window, per IP**, reported via `x-ratelimit-used` / `-remaining` / `-reset`. Cost is per-response-size, not per-request.
+- **The challenge.** The first request in a session gets an 8 KB JavaScript interstitial: a hidden GET form (`solution`, `js_challenge=1`, `jsc_token`, `jsc_orig_r`) and a script that computes `solution = c + c` for a 16-character constant `c` embedded in the script — **not** the form's 64-character `jsc_token`. Submitting `token+token` earns a 403 "blocked by network security" page (learned the hard way). The solved response sets `token_v2` / `loid` cookies; the resolver's one-per-instance ephemeral `URLSession` keeps them in memory, so the challenge is solved once per refresh (or share), not once per post. `RedditPostPage.Challenge.challenge(in:)` recognises *only* the `(async e=>e+e)("…")` shape; anything else is a miss and the resolver falls through to OpenGraph rather than guess. **If Reddit hardens the solver, this is the regex to revisit.**
+- **A separate budget.** The page is metered apart from the feed/OG budget: `x-ratelimit-remaining` starts at ~225, `x-ratelimit-reset` at ~372 s, and each page costs 2 units (burst-measured 2026-10-09: `-used` climbed 1, 3, 5, 7… across eight back-to-back fetches). `RedditRateLimiter.page` governs it with `Profile.page` (window 400 s, reserve 20, assumed cost 3, persisted under suffixed `UserDefaults` keys). A 100-item queue fits in one window.
+- **Removed posts** keep their `<shreddit-post>` (title `[ Removed by moderator ]`, `content-href` pointing back at the permalink) and sometimes still a player tag. `RedditPostPage.isUnavailable` catches them via the title / `moderation-verdict` and the resolver emits the same dead card as the RSS path; the lingering player URL is never trusted.
+- **Restored by the page:** the `nsfw` flag (`ResolvedMetadata.isNSFW`, so the NSFW toggle now applies to Reddit items resolved this way). **Still lost:** gallery item URLs and score.
+- Untested: NSFW posts (a possible age-gate interstitial) and whether a tvOS `URLSession` is fingerprinted differently from the Mac. The code path is identical; only the device differs.
+
+**The OpenGraph HTML page is the last resort.** It costs roughly 6x more feed budget than the RSS feed while carrying strictly less information than either other source (never any media), so it is fetched only when (a) neither RSS nor the page produced a usable title, or (b) neither produced a thumbnail *and* the feed window has budget to spare (`acquireIfBudgetToSpare`). Titles are essential; thumbnails are a bonus that must never crowd them out.
+
+**Rate limiting is a real constraint, but a far looser one than this file long claimed.** Reddit meters the feed and OpenGraph endpoints on a **~9000-unit budget per rolling 60-second window, per IP**, reported via `x-ratelimit-used` / `-remaining` / `-reset`. Cost is per-response-size, not per-request. The full post page has its own, separate budget (see above).
 
 Burst-measured 2026-08-27 (8 back-to-back requests inside one window, cache-busted, no rollover mid-burst): **~33 units for a feed** — consecutive deltas of 29-38 — and **~190 for the OG page** including its 301 hop. Every earlier figure here (~150-350 and ~230-780, later "repriced" to ~1,200 and ~2,500) was wrong, and wrong the same way: sampled seconds apart, so the deltas measured requests ageing out of the rolling window and other household devices landing in the gaps rather than our own cost. **Only back-to-back deltas inside one window measure anything.** Re-measure that way before ever changing the constants in `RedditRateLimiter`.
 
 The practical consequence: a 59-item queue costs roughly 2,000 units and **fits comfortably inside a single window**. Hydration is not budget-bound at this queue size. What actually broke the queue was the limiter jamming on poisoned persisted state and a 429 retry loop (both fixed 2026-08-27), not the size of the budget.
 
-`RedditRateLimiter` (a shared actor, one instance per process because the budget is per-IP) is the single choke point. Every request passes `acquire(before:)` and returns its response via `record(_:)`. It discounts requests admitted but not yet answered, holds back a reserve, and on a 429 waits out the window rather than retrying into the wall. **Never add a short-backoff retry here.** Retrying while throttled just spends more budget and deepens the hole.
+`RedditRateLimiter` (an actor; one shared instance per budget — `.shared` for feed/OG, `.page` for the post page — because each budget is per-IP) is the single choke point. Every request passes `acquire(before:)` and returns its response via `record(_:)`. Budget-specific constants live in `RedditRateLimiter.Profile`. It discounts requests admitted but not yet answered, holds back a reserve, and on a 429 waits out the window rather than retrying into the wall. **Never add a short-backoff retry here.** Retrying while throttled just spends more budget and deepens the hole.
 
 - **Deleted posts** still have a feed entry, but the title is `[deleted]` / `[removed]` and the media is gone. They resolve to `PostType.unsupported` with an explicit "Post no longer available on Reddit" title, so they read as dead rather than as a video that fails on playback.
 - **Reddit's generic branded `og:image`** (`i.redd.it/o0h58lzmax6a1.png`) is served for any post without a real preview. It is filtered out by `isPlaceholderImage`, since it is the same image on every such post and the style guide rules out Reddit branding anyway.
-- **Still lost vs. the old JSON path** (restore if/when OAuth is approved): gallery arrays, score, and the `over_18` flag, so **NSFW filtering does not apply to Reddit items**.
+- **Still lost vs. the old JSON path:** gallery arrays and score. The `over_18` flag is back for posts resolved through the full page (`nsfw` attribute); posts resolved from RSS or OpenGraph carry `isNSFW == nil`, which the TV treats as not-NSFW.
 - `PostCardRow` shows a thumbnail for any post carrying a preview image, not just inherently-visual types.
 
-**If Reddit Data API access is approved (PRD Phase 7):** write a JSON/OAuth resolver against `oauth.reddit.com` producing the same `normalize → Post` shape. The notes below describe that richer JSON structure.
+**Phase 7 is retired.** The notes below describe the old `.json` structure, kept only because the page's `<shreddit-post>` attributes map onto the same concepts.
 
 - **v.redd.it videos:** Audio and video are separate DASH streams. Use the `hls_url` field from `media.reddit_video` for AVKit playback. The `fallback_url` is video-only (no audio).
 - **Gallery posts:** Image data is split across `gallery_data.items` (ordering) and `media_metadata` (URLs). URLs in `media_metadata` are HTML-encoded and need decoding.
@@ -166,6 +181,8 @@ Unauthenticated oEmbed endpoint. Returns `title`, `author_name`, `thumbnail_url`
 ### Public Endpoint Risk
 
 Both endpoints used by v1 (Reddit's RSS/preview surface and `youtube.com/oembed`) are public and unauthenticated. If either is gated, the corresponding resolver breaks and we may need to move to the authenticated API (Phase 7 for Reddit, or a YouTube Data API key). Reddit has already gated `.json` once, so treat continued RSS access as borrowed time.
+
+**The borrowed time has a date. Reddit announced on 2026-09-30 (r/modnews post `1wubgvt`) that RSS feeds stop on 2026-11-13, with "no replacement" outside moderator workflows.** The OpenGraph page carries no media for video posts under any User-Agent tried. The full post page does (see above), and `RedditMetadataResolver` falls through to it automatically when the feed stops answering: after the cutoff, `looksLikeAtomFeed` fails, `fetchPage` solves the challenge, and video keeps playing. The remaining risk is Reddit hardening that challenge — it is designed to be — at which point `Challenge.challenge(in:)` returns nil, the resolver falls to OpenGraph, and cards keep their titles but **in-app Reddit video playback ends** for anything not already cached with a media URL. Reddit is also folding the public Data API into a paid Developer Platform (registration deadline 2027-01-12), so there is no API fallback. See `STATUS.md`.
 
 ## YouTube Playback on tvOS
 

@@ -19,6 +19,9 @@ struct ResolvedMetadata: Codable, Hashable, Sendable {
     var mediaURL: URL?
     var outboundURL: URL?
     var domain: String?
+    /// Reddit's NSFW flag, when the source carried it. `nil` means unknown (the RSS feed
+    /// and OpenGraph page never say); the TV treats unknown as not-NSFW, as it always has.
+    var isNSFW: Bool?
     /// When this metadata was fetched. Drives cache freshness on the TV.
     var resolvedAt: Date
 
@@ -32,6 +35,7 @@ struct ResolvedMetadata: Codable, Hashable, Sendable {
         mediaURL: URL? = nil,
         outboundURL: URL? = nil,
         domain: String? = nil,
+        isNSFW: Bool? = nil,
         resolvedAt: Date = Date()
     ) {
         self.title = title
@@ -43,6 +47,7 @@ struct ResolvedMetadata: Codable, Hashable, Sendable {
         self.mediaURL = mediaURL
         self.outboundURL = outboundURL
         self.domain = domain
+        self.isNSFW = isNSFW
         self.resolvedAt = resolvedAt
     }
 }

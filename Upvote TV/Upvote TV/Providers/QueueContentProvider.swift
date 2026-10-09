@@ -289,7 +289,7 @@ final class QueueContentProvider: ContentProvider {
             textBody: nil,
             outboundURL: metadata.outboundURL ?? item.url,
             domain: metadata.domain ?? item.url.host,
-            isNSFW: false,
+            isNSFW: metadata.isNSFW ?? false,
             score: nil,
             sharedAt: item.sharedAt,
             resolvedAt: metadata.resolvedAt

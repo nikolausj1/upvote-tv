@@ -48,8 +48,8 @@ enum AppConfig {
     /// meaningfully slowing a refresh, since the budget — not concurrency — is the limit.
     static let resolverConcurrency = 4
     /// How long a single Reddit post may spend waiting on rate-limit budget before the
-    /// resolver gives up on it. A large queue can't be hydrated inside one 60-second
-    /// window, so some waiting is normal and expected; this only stops one refresh from
+    /// resolver gives up on it. At measured costs a 100-item queue fits inside one window
+    /// of either budget, so waiting is the exception; this only stops one refresh from
     /// hanging indefinitely. Anything skipped falls back to cache and retries next refresh.
     static let redditResolveDeadline: TimeInterval = 150
     /// How many times a single Reddit request may be re-issued after a 429. Each retry
@@ -65,6 +65,11 @@ enum AppConfig {
     /// substring-matches, so the lightweight preview page is served instead of the bot wall.
     /// Workaround pending Reddit Data API approval — see docs.
     static let redditPreviewUserAgent = "UpvoteTV/1.0 (+personal; facebookexternalhit/1.1)"
+    /// User-Agent used for the full post page (`RedditPostPage`). Deliberately *not* the
+    /// crawler UA: the crawler token buys the lightweight OpenGraph shell, which is exactly
+    /// the page without the media. A plain client UA gets the JavaScript challenge and, once
+    /// it is solved, the real page. Verified 2026-10-09.
+    static let redditPageUserAgent = "UpvoteTV/1.0 (+personal)"
     /// Empty-queue poll interval.
     static let emptyQueuePollInterval: TimeInterval = 10
     /// How long the Share Extension will wait on metadata before giving up and writing the

@@ -131,7 +131,7 @@ protocol ContentProvider {
 
 - **MockContentProvider** returns sample data covering every post type. Used for SwiftUI previews and offline development.
 - **QueueContentProvider** (v1 primary) reads `queue.json` from a GitHub Gist, then hydrates each queue item into a full `Post` using the appropriate metadata resolver (Reddit or YouTube). Results are cached in SwiftData for 24 hours.
-- **RedditContentProvider** is deferred to Phase 7 — only revisited if Reddit API access is approved under the Responsible Builder Policy.
+- **RedditContentProvider** (a Reddit-API-backed provider) was Phase 7 and is retired: Reddit closed public Data API access in late 2026.
 
 The app doesn't know or care which provider it's using.
 
@@ -204,9 +204,9 @@ Sample `queue.json`:
 | 4.5 | Pivot queue transport from iCloud Drive → GitHub Gist (v3.1) | ✅ Done |
 | 5 | iOS companion app + native Share Extension (v3.2) | ✅ Done |
 | 6 | Polish: icon, top shelf, ambient-glow header, tagline rotation | ✅ Done |
-| 7 | Reddit API (optional, requires Responsible Builder Policy approval) | ⏸ Deferred |
+| 7 | Reddit API (optional, requires Responsible Builder Policy approval) | 🚫 Retired |
 
-The original plan used the Reddit API as the primary data source. Reddit's 2025 Responsible Builder Policy introduced an unpredictable manual approval queue, so v3 of the PRD pivoted to the iPhone share-sheet model. Reddit API remains a possible future enhancement if access is granted.
+The original plan used the Reddit API as the primary data source. Reddit's 2025 Responsible Builder Policy introduced an unpredictable manual approval queue, so v3 of the PRD pivoted to the iPhone share-sheet model. In late 2026 Reddit closed new public Data API requests outright and announced the end of public API access in March 2027, so Phase 7 is retired. Reddit metadata comes from public pages instead: the RSS feed while it lasts (Reddit has announced it ends 2026-11-13), then the full post page behind Reddit's JavaScript challenge, then the OpenGraph preview as a last resort.
 
 ## License
 

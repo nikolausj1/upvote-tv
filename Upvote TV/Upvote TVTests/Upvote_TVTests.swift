@@ -185,6 +185,10 @@ struct EntityDecodingTests {
 
 /// Serves canned responses so the resolver's full path can be exercised without touching
 /// Reddit — and without spending the rate-limit budget the real endpoints meter.
+///
+/// The stub table and request log are process-wide, and Swift Testing runs suites in
+/// parallel, so `setStubs` *merges* into the table and never clears the log. Tests stay
+/// independent by using a post ID no other test uses and filtering `requestedURLs` by it.
 final class StubURLProtocol: URLProtocol, @unchecked Sendable {
     struct Stub: Sendable {
         var status: Int = 200
@@ -199,8 +203,7 @@ final class StubURLProtocol: URLProtocol, @unchecked Sendable {
 
     static func setStubs(_ stubs: [String: Stub]) {
         lock.lock(); defer { lock.unlock() }
-        _stubs = stubs
-        _requested = []
+        _stubs.merge(stubs) { _, new in new }
     }
 
     static var requestedURLs: [String] {
@@ -346,12 +349,13 @@ struct RedditResolveEndToEndTests {
         // this asserts the retry happens at all, which is what stopped posts from
         // permanently falling back to raw-URL cards when a refresh started mid-window.
         StubURLProtocol.setStubs([
-            "https://www.reddit.com/comments/1v3ko5f.rss?limit=1":
-                .init(status: 429, body: "", headers: ["retry-after": "0"])
+            "https://www.reddit.com/comments/retry429.rss?limit=1":
+                .init(status: 429, body: "", headers: ["retry-after": "0"]),
+            "https://www.reddit.com/comments/retry429/": .init(status: 404, body: "")
         ])
         let resolver = makeStubbedResolver()
-        _ = try? await resolver.resolve(queueItem(id: "1v3ko5f"))
-        let rssAttempts = StubURLProtocol.requestedURLs.filter { $0.contains(".rss") }.count
+        _ = try? await resolver.resolve(queueItem(id: "retry429"))
+        let rssAttempts = StubURLProtocol.requestedURLs.filter { $0.contains("retry429.rss") }.count
         #expect(rssAttempts > 1)
     }
 }
@@ -374,31 +378,31 @@ struct ShareTimeResolverTests {
 
     @Test func enrichesTheItemWhenResolutionSucceeds() async {
         StubURLProtocol.setStubs([
-            "https://www.reddit.com/comments/1v3ko5f.rss?limit=1":
+            "https://www.reddit.com/comments/share01.rss?limit=1":
                 .init(body: feed(wrapping: sampleEntry),
                       headers: ["x-ratelimit-remaining": "8000", "x-ratelimit-reset": "50"])
         ])
-        let metadata = await makeResolver(timeout: 10).resolve(queueItem(id: "1v3ko5f"))
+        let metadata = await makeResolver(timeout: 10).resolve(queueItem(id: "share01"))
         #expect(metadata?.title == "Make it sloppy")
         #expect(metadata?.postType == .video)
     }
 
     @Test func returnsNilRatherThanFailingTheShare() async {
         // The share must survive a dead network. nil just means the TV resolves it later.
-        StubURLProtocol.setStubs([:])
-        let metadata = await makeResolver(timeout: 10).resolve(queueItem(id: "1v3ko5f"))
+        // No stubs for this id, so every request fails as unsupported.
+        let metadata = await makeResolver(timeout: 10).resolve(queueItem(id: "share02"))
         #expect(metadata == nil)
     }
 
     @Test func givesUpOnTimeRatherThanHoldingTheShareSheetOpen() async {
         StubURLProtocol.setStubs([
-            "https://www.reddit.com/comments/1v3ko5f.rss?limit=1":
+            "https://www.reddit.com/comments/share03.rss?limit=1":
                 .init(status: 429, body: "", headers: ["x-ratelimit-reset": "60"])
         ])
         // A 429 makes the limiter want to wait out a 60-second window. The share sheet is a
         // foreground moment, so the timeout must win well before that.
         let started = Date()
-        let metadata = await makeResolver(timeout: 1).resolve(queueItem(id: "1v3ko5f"))
+        let metadata = await makeResolver(timeout: 1).resolve(queueItem(id: "share03"))
         #expect(metadata == nil)
         #expect(Date().timeIntervalSince(started) < 5)
     }

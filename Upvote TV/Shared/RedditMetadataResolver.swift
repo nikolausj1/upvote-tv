@@ -1,43 +1,49 @@
 import Foundation
 
-/// Resolves a Reddit `QueueItem` to a `Post` using unauthenticated endpoints that are
+/// Resolves a Reddit `QueueItem` to metadata using unauthenticated endpoints that are
 /// still reachable after Reddit gated the public `.json` API.
 ///
 /// **Why not `.json`:** As of ~June 2026 Reddit blocks `reddit.com/comments/{id}.json`
 /// behind the Responsible Builder Policy ("blocked due to a network policy"), regardless
-/// of User-Agent. The authenticated OAuth API needs Data API approval (pending).
+/// of User-Agent. The public Data API is being folded into a paid Developer Platform.
 ///
-/// **The RSS feed is the primary source.** `reddit.com/comments/{id}.rss` is
-/// unauthenticated and carries everything a card needs: the bare post title, the
-/// subreddit (properly cased, from `<category term=…>`), the author, the publish date,
-/// a `media:thumbnail`, and — crucially — the post's actual media, so `v.redd.it` video
-/// still plays in-app.
+/// Three sources, tried cheapest-first; each is best-effort and the resolve only throws
+/// when none of them produced a title:
 ///
-/// **The OpenGraph preview page is a fallback only.** Fetching the post's HTML with a
-/// crawler-style User-Agent (`AppConfig.redditPreviewUserAgent`) yields the same social
-/// unfurl iMessage/Slack use, but it costs roughly 6x more rate-limit budget than the RSS
-/// feed (burst-measured 2026-08-27: ~190 units including its 301 hop, vs ~33) while
-/// carrying strictly less information. It is therefore only fetched when RSS fails
-/// outright or returns no usable title.
+/// 1. **The RSS feed** (`reddit.com/comments/{id}.rss?limit=1`). Unauthenticated, ~3.5 KB,
+///    ~33 units of the feed budget, and it carries everything a card needs: the bare post
+///    title, the subreddit (properly cased, from `<category term=…>`), the author, the
+///    publish date, a `media:thumbnail`, and the post's actual media, so `v.redd.it` video
+///    plays in-app. **Reddit has announced RSS ends 2026-11-13.**
+/// 2. **The full post page** (`reddit.com/comments/{id}/`, see `RedditPostPage`). Behind
+///    a small JavaScript challenge this type solves; ~1.1 MB; 2 units of a *separate*
+///    ~225-unit budget. Carries the same fields as the feed plus the NSFW flag. This is the
+///    path that keeps video playing after the feed is gone.
+/// 3. **The OpenGraph preview page**, fetched with a crawler-style User-Agent
+///    (`AppConfig.redditPreviewUserAgent`): the same social unfurl iMessage/Slack get.
+///    ~190 units of the feed budget for a title, subreddit and `og:image` only — never any
+///    media. Last resort for a title, and an opportunistic thumbnail top-up when the
+///    cheaper sources had none and the window has budget to spare.
 ///
-/// **Rate limiting is a real constraint, not the whole ballgame.** Reddit meters these
-/// endpoints on a ~9000-unit per-60-second per-IP budget; at ~33 units a feed, a 50-post
-/// queue costs ~1650 and fits inside one window.
-/// Every request goes through `RedditRateLimiter.shared`, which paces the fleet and waits
-/// out the window instead of retrying into a 429. See that type for the measurements.
-///
-/// Both fetches are best-effort — the resolve only throws if *both* fail, so a partial
-/// outage still yields a usable card. Restore a JSON/OAuth resolver to this same `Post`
-/// shape if Reddit Data API access is later approved (PRD Phase 7).
+/// Every request goes through a `RedditRateLimiter` (one per budget), which paces the fleet
+/// and waits out the window instead of retrying into a 429. See that type for the
+/// measurements.
 struct RedditMetadataResolver {
     private let session: URLSession
+    /// Governor for the feed / OpenGraph budget.
     private let limiter: RedditRateLimiter
+    /// Governor for the full post page's separate budget.
+    private let pageLimiter: RedditRateLimiter
 
-    init(session: URLSession? = nil, limiter: RedditRateLimiter = .shared) {
+    init(session: URLSession? = nil, limiter: RedditRateLimiter = .shared, pageLimiter: RedditRateLimiter = .page) {
         self.limiter = limiter
+        self.pageLimiter = pageLimiter
         if let session {
             self.session = session
         } else {
+            // Ephemeral, but one session per resolver: it keeps cookies in memory for its
+            // lifetime, which is what lets the post-page challenge be solved once and then
+            // skipped for every later post in the same refresh (or share).
             let config = URLSessionConfiguration.ephemeral
             config.timeoutIntervalForRequest = AppConfig.resolverTimeout
             config.timeoutIntervalForResource = AppConfig.resolverTimeout
@@ -48,70 +54,126 @@ struct RedditMetadataResolver {
     func resolve(_ item: QueueItem) async throws -> ResolvedMetadata {
         let deadline = Date().addingTimeInterval(AppConfig.redditResolveDeadline)
 
-        // RSS first: cheaper and richer than the preview page.
+        // RSS first: cheapest, and as rich as anything else while it lasts.
         let media = await fetchMedia(item, before: deadline)
 
-        // Pay for the heavier HTML page when RSS left us without a title — the one gap that
-        // would otherwise render the card as a raw URL. A missing thumbnail is worth topping
-        // up too, but only out of spare budget: a title is essential, an image is a bonus,
-        // and on a cold queue every unit spent here is a unit some other post needs to
-        // render at all. (Measured: ~44 of 59 real queue posts carry an RSS thumbnail.)
-        var og: OpenGraph?
+        // When the feed left us without a title (after 2026-11-13: always), the full post
+        // page is next. It costs a separate, small budget and is the only remaining source
+        // of the media URL, so it is worth its weight for any post the feed could not carry.
+        var page: RedditPostPage?
         if media?.title == nil {
+            page = await fetchPage(item, before: deadline)
+        }
+
+        // The OpenGraph page is the last resort for a title — the one gap that would
+        // otherwise render the card as a raw URL. A missing thumbnail is worth topping up
+        // too, but only out of spare budget: a title is essential, an image is a bonus, and
+        // on a cold queue every unit spent here is a unit some other post needs to render
+        // at all. (Measured: ~44 of 59 real queue posts carry an RSS thumbnail.)
+        var og: OpenGraph?
+        let haveTitle = media?.title != nil || page?.title != nil
+        let haveThumbnail = media?.thumbnail != nil || page?.previewImage != nil
+        let unavailable = media?.isUnavailable == true || page?.isUnavailable == true
+        if !haveTitle {
             og = await fetchOpenGraph(item, before: deadline)
-        } else if media?.thumbnail == nil, media?.isUnavailable == false {
+        } else if !haveThumbnail, !unavailable {
             og = await fetchOpenGraphOpportunistically(item)
         }
 
-        // Only give up if neither endpoint produced anything usable.
-        if og == nil && media == nil {
+        // Only give up if no endpoint produced anything usable.
+        if og == nil && media == nil && page == nil {
             throw MetadataResolveError.unreachable
         }
 
-        return try assemble(item: item, og: og, media: media)
+        return try assemble(item: item, og: og, media: media, page: page)
+    }
+
+    /// The full post page alone, bypassing the feed. Exposed for diagnostics and the live
+    /// verification harness; production code goes through `resolve`.
+    func resolveFromPage(_ item: QueueItem) async throws -> ResolvedMetadata {
+        let deadline = Date().addingTimeInterval(AppConfig.redditResolveDeadline)
+        guard let page = await fetchPage(item, before: deadline) else {
+            throw MetadataResolveError.unreachable
+        }
+        return try assemble(item: item, og: nil, media: nil, page: page)
     }
 
     // MARK: - Assembly
 
-    private func assemble(item: QueueItem, og: OpenGraph?, media: RedditMedia?) throws -> ResolvedMetadata {
-        // RSS titles are the bare post title; OG's come off the page `<title>` and need the
-        // " : r/sub" suffix stripped. Both parsers return nil (never "") on a miss. Neither
-        // resolving is treated as a total miss — the caller falls back to a stale cache
-        // entry or an un-cached raw-URL card and retries next refresh, rather than caching
-        // the URL itself as the title for a full 30 days.
-        guard let title = media?.title ?? og?.title else {
+    private func assemble(item: QueueItem, og: OpenGraph?, media: RedditMedia?, page: RedditPostPage?) throws -> ResolvedMetadata {
+        // RSS titles are the bare post title; the page's `post-title` attribute likewise;
+        // OG's come off the page `<title>` and need the " : r/sub" suffix stripped. All
+        // parsers return nil (never "") on a miss. Neither resolving is treated as a total
+        // miss — the caller falls back to a stale cache entry or an un-cached raw-URL card
+        // and retries next refresh, rather than caching the URL itself as the title for a
+        // full 30 days.
+        guard let title = media?.title ?? page?.title ?? og?.title else {
             throw MetadataResolveError.unreachable
         }
-        // Prefer RSS for the subreddit — `<category term=…>` is exact, where the OG path
+        // Prefer RSS, then the page, for the subreddit — both are exact, where the OG path
         // recovers casing from a page title.
-        let subreddit = media?.subreddit ?? og?.subreddit
-        let preview = media?.thumbnail ?? og?.preview
-        let outbound = media?.outbound ?? media?.canonical ?? og?.canonical ?? item.url
+        let subreddit = media?.subreddit ?? page?.subreddit ?? og?.subreddit
+        let preview = media?.thumbnail ?? page?.previewImage ?? og?.preview
+        let pageMedia = page.flatMap(Self.media(fromPage:))
+        let outbound = media?.outbound ?? pageMedia?.outbound ?? media?.canonical ?? page?.permalink ?? og?.canonical ?? item.url
 
-        // A post the author or a mod removed still has a feed entry, but its media is gone.
+        // A post the author or a mod removed still has a feed entry and a page, but its
+        // media is gone (or, on the page, may linger behind a tombstone — never trust it).
         // Surface it as an explicit dead card rather than a video that fails on playback.
-        if media?.isUnavailable == true {
+        if media?.isUnavailable == true || page?.isUnavailable == true {
             return ResolvedMetadata(
                 title: Self.unavailableTitle,
                 subreddit: subreddit,
-                publishedAt: media?.published,
+                publishedAt: media?.published ?? page?.published,
                 postType: .unsupported,
                 outboundURL: outbound,
-                domain: "reddit.com"
+                domain: "reddit.com",
+                isNSFW: page?.isNSFW
             )
         }
 
         return ResolvedMetadata(
             title: title,
             subreddit: subreddit,
-            author: media?.author,
-            publishedAt: media?.published,
-            postType: media?.postType ?? .link,
+            author: media?.author ?? page?.author,
+            publishedAt: media?.published ?? page?.published,
+            postType: media?.postType ?? pageMedia?.postType ?? .link,
             thumbnailURL: preview,
-            mediaURL: media?.mediaURL,
+            mediaURL: media?.mediaURL ?? pageMedia?.mediaURL,
             outboundURL: outbound,
-            domain: "reddit.com"
+            domain: "reddit.com",
+            isNSFW: page?.isNSFW
         )
+    }
+
+    /// Classifies a parsed post page the same way the RSS path classifies a feed entry:
+    /// Reddit-hosted video → image → external YouTube → plain link.
+    private static func media(fromPage page: RedditPostPage) -> (postType: PostType, mediaURL: URL?, outbound: URL?)? {
+        if let hls = page.hlsURL {
+            return (.video, hls, nil)
+        }
+        if let href = page.contentHref {
+            let host = href.host?.lowercased() ?? ""
+            if host == "i.redd.it" {
+                return (.image, href, nil)
+            }
+            if host.hasSuffix("youtube.com") || host == "youtu.be" {
+                return (.youtube, nil, href)
+            }
+            switch page.postType {
+            case "image": return (.image, href, nil)
+            case "gallery": return (.gallery, nil, href)
+            case "text": return (.text, nil, nil)
+            case "link", "crosspost": return (.link, nil, href)
+            default: break
+            }
+            return (.link, nil, href)
+        }
+        switch page.postType {
+        case "text": return (.text, nil, nil)
+        case "gallery": return (.gallery, nil, nil)
+        default: return nil
+        }
     }
 
     /// Shown in place of `[deleted]` / `[removed]`, which is what Reddit puts in the feed.
@@ -188,6 +250,44 @@ struct RedditMetadataResolver {
 
         // No recognizable media — a text/self post or external link. Carry what we have.
         return media(.link, thumbnail: thumbnail)
+    }
+
+    // MARK: - Full post page fetch (post-RSS primary)
+
+    /// Fetches and parses `reddit.com/comments/{id}/`, solving Reddit's JavaScript
+    /// challenge if it is served one. Both requests are metered against the page budget.
+    ///
+    /// Returns nil on any failure — an unfamiliar challenge, a block page, a budget that
+    /// cannot be had before `deadline` — so the caller can fall through to OpenGraph.
+    private func fetchPage(_ item: QueueItem, before deadline: Date) async -> RedditPostPage? {
+        guard let url = URL(string: "https://www.reddit.com/comments/\(item.id)/") else { return nil }
+
+        guard let first = await fetchString(url, accept: Self.pageAccept, userAgent: AppConfig.redditPageUserAgent,
+                                            limiter: pageLimiter, before: deadline) else {
+            return nil
+        }
+        if let page = RedditPostPage.parse(first) {
+            // Session cookies from an earlier solve carried us straight through.
+            return page
+        }
+        guard let challenge = RedditPostPage.Challenge.challenge(in: first),
+              let solvedURL = challenge.solvedURL(for: url) else {
+            // Not a post and not a challenge we know how to answer: a block page, a login
+            // wall, or a hardened interstitial. Treat as a miss rather than guess.
+            return nil
+        }
+        guard let solved = await fetchString(solvedURL, accept: Self.pageAccept, userAgent: AppConfig.redditPageUserAgent,
+                                             limiter: pageLimiter, before: deadline) else {
+            return nil
+        }
+        return RedditPostPage.parse(solved)
+    }
+
+    private static let pageAccept = "text/html,application/xhtml+xml"
+
+    /// The page budget as the resolver currently sees it. Diagnostics only.
+    var pageDiagnostics: RedditRateLimiter.Diagnostics {
+        get async { await pageLimiter.diagnostics }
     }
 
     // MARK: - OpenGraph fetch (fallback)
@@ -277,9 +377,13 @@ struct RedditMetadataResolver {
     /// 200 that isn't actually the expected document (a block page served on the RSS path,
     /// say) can be treated as a miss instead of parsed as if it were real.
     private func fetchString(
-        _ url: URL, accept: String, before deadline: Date,
+        _ url: URL, accept: String,
+        userAgent: String = AppConfig.redditPreviewUserAgent,
+        limiter: RedditRateLimiter? = nil,
+        before deadline: Date,
         validate: (String, String?) -> Bool = { _, _ in true }
     ) async -> String? {
+        let limiter = limiter ?? self.limiter
         // A 429 means this request arrived after the budget was already gone — typically
         // because a previous run, another device on the same IP, or the app's own cold
         // start spent the window before the limiter had any reading to go on. That
@@ -288,7 +392,7 @@ struct RedditMetadataResolver {
         // into the wall: `acquire` will not admit until the budget is actually back.
         for _ in 0..<AppConfig.redditThrottleRetries {
             guard await limiter.acquire(before: deadline) else { return nil }
-            switch await performGET(url, accept: accept) {
+            switch await performGET(url, accept: accept, userAgent: userAgent, limiter: limiter) {
             case .success(let body, let contentType):
                 return validate(body, contentType) ? body : nil
             case .throttled: continue
@@ -300,10 +404,15 @@ struct RedditMetadataResolver {
 
     /// Issues the request and settles up with the limiter. The caller must already hold a
     /// slot from `acquire`/`acquireIfBudgetToSpare`; this always hands exactly one back.
-    private func performGET(_ url: URL, accept: String) async -> FetchOutcome {
+    private func performGET(
+        _ url: URL, accept: String,
+        userAgent: String = AppConfig.redditPreviewUserAgent,
+        limiter: RedditRateLimiter? = nil
+    ) async -> FetchOutcome {
+        let limiter = limiter ?? self.limiter
         var request = URLRequest(url: url)
         request.setValue(accept, forHTTPHeaderField: "Accept")
-        request.setValue(AppConfig.redditPreviewUserAgent, forHTTPHeaderField: "User-Agent")
+        request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
 
         guard let (data, response) = try? await session.data(for: request) else {
             // No response to learn from, but the slot still has to be handed back.

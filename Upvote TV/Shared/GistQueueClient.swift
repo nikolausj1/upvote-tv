@@ -195,6 +195,7 @@ struct GistQueueClient {
         var mediaURL: String?
         var outboundURL: String?
         var domain: String?
+        var isNSFW: Bool?
         var resolvedAt: String
     }
 
@@ -249,6 +250,7 @@ struct GistQueueClient {
                     mediaURL: dtoMeta.mediaURL.flatMap { URL(string: $0) },
                     outboundURL: dtoMeta.outboundURL.flatMap { URL(string: $0) },
                     domain: dtoMeta.domain,
+                    isNSFW: dtoMeta.isNSFW,
                     resolvedAt: resolvedAt
                 )
             }
@@ -279,6 +281,7 @@ struct GistQueueClient {
                             mediaURL: meta.mediaURL?.absoluteString,
                             outboundURL: meta.outboundURL?.absoluteString,
                             domain: meta.domain,
+                            isNSFW: meta.isNSFW,
                             resolvedAt: iso.string(from: meta.resolvedAt)
                         )
                     }

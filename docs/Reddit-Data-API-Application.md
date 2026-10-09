@@ -1,13 +1,15 @@
 ---
 title: "Reddit Data API Application Draft"
 created: 2026-08-02
-modified: 2026-08-02
-version: 1.0
+modified: 2026-10-09
+version: 1.1
 author: Claude Opus 5 (claude-opus-5)
 tags:
 ---
 
 # Reddit Data API Application Draft
+
+> **Retired 2026-10-09. Do not submit.** Reddit stopped accepting new public Data API requests on 2026-10-31 and is ending all public Data API access in March 2027, folding developer access into the paid Developer Platform (Devvit). There is nothing left to apply for. The replacement for the data this application was meant to unlock is the full-post-page resolver (`Shared/RedditPostPage.swift`), which restores the media URL and the NSFW flag without any API. The draft is kept below for the record.
 
 A submission-ready draft for reapplying to Reddit's Data API under the Responsible Builder Policy. The first application was denied with "lacks necessary details", which is a fixable rejection: the reviewer needs a concrete picture of what is fetched, how often, where it goes, and who sees it. Everything below is specific on those points.
 
