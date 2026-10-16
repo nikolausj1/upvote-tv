@@ -5,6 +5,7 @@ struct BrowseListView: View {
     @StateObject private var viewModel: GalleryViewModel
     @FocusState private var focusedID: String?
     @State private var selectedPost: Post?
+    @Environment(\.scenePhase) private var scenePhase
 
     private static let caughtUpID = "__caught_up__"
 
@@ -33,6 +34,25 @@ struct BrowseListView: View {
         .task {
             await viewModel.loadPosts()
             resetFocusToTop()
+        }
+        // tvOS keeps the app alive in the background, so coming back to it does not re-run
+        // the initial `.task`. Without this, the only way to see a post shared while the
+        // app was backgrounded was to force-quit and relaunch.
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active {
+                viewModel.refreshIfStale()
+            }
+        }
+        // And while the app sits on this screen, pick up new shares on a slow cadence. The
+        // gist fetch is one cheap GitHub call; anything already resolved comes from cache,
+        // so only genuinely new posts cost a Reddit request.
+        .task {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(AppConfig.foregroundRefreshInterval))
+                if scenePhase == .active {
+                    viewModel.refreshIfStale()
+                }
+            }
         }
         .background(Color.black)
         .fullScreenCover(item: $selectedPost, onDismiss: {

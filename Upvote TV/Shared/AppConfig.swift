@@ -72,6 +72,14 @@ enum AppConfig {
     static let redditPageUserAgent = "UpvoteTV/1.0 (+personal)"
     /// Empty-queue poll interval.
     static let emptyQueuePollInterval: TimeInterval = 10
+    /// How often the Browse screen re-fetches the queue while the app is in the foreground.
+    /// One authenticated GitHub call per tick; resolved posts come from cache, so the
+    /// Reddit budget is only touched for posts that are actually new.
+    static let foregroundRefreshInterval: TimeInterval = 120
+    /// Refresh triggers closer together than this are coalesced. Covers the scene-phase
+    /// flicker at launch (inactive → active right after the initial load starts) and a
+    /// timer tick landing just after a return from the background.
+    static let minimumRefreshInterval: TimeInterval = 15
     /// How long the Share Extension will wait on metadata before giving up and writing the
     /// item bare. Kept short: the share sheet is a foreground, human-facing moment, and the
     /// TV can always resolve later. Capturing the URL is the job; enrichment is a bonus.

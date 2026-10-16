@@ -14,6 +14,14 @@ final class GalleryViewModel: ObservableObject {
     private let provider: ContentProvider
     let watchedManager: WatchedStateManager
 
+    /// The load currently in flight, if any, so a refresh can supersede it instead of
+    /// running two hydrations side by side against the same rate-limit budget.
+    private var loadTask: Task<Void, Never>?
+    /// When the most recent load started. `refreshIfStale` uses it to ignore refresh
+    /// triggers that land right on top of one another (scene-phase flicker at launch, a
+    /// timer tick just after a return from the background).
+    private(set) var lastLoadStartedAt: Date?
+
     init(provider: ContentProvider, watchedManager: WatchedStateManager) {
         self.provider = provider
         self.watchedManager = watchedManager
@@ -90,6 +98,7 @@ final class GalleryViewModel: ObservableObject {
     // MARK: - Actions
 
     func loadPosts() async {
+        lastLoadStartedAt = Date()
         if !hasAttemptedLoad {
             isLoading = true
         }
@@ -112,13 +121,38 @@ final class GalleryViewModel: ObservableObject {
                     isLoading = false
                 }
             }
-        } catch let error as ContentProviderError {
-            loadError = error
         } catch {
-            loadError = .unknown
+            // A superseded load (cancelled by a newer refresh or by the view going away) is
+            // not a failure, and must not leave an error on screen over a list that the
+            // replacement load is about to update.
+            if Task.isCancelled { return }
+            // A refresh that fails while there is already a queue on screen keeps the queue
+            // on screen: cached content is the safety net (Architecture Rule 6), and a
+            // full-screen error over a perfectly good list is the wrong trade for a blip
+            // while the TV was asleep. Only an initial load with nothing to show reports.
+            if posts.isEmpty || !hasAttemptedLoad {
+                loadError = (error as? ContentProviderError) ?? .unknown
+            }
         }
         hasAttemptedLoad = true
         isLoading = false
+    }
+
+    /// Re-fetches the queue without touching what is on screen, unless a load started less
+    /// than `minimumInterval` ago. Called when the app returns to the foreground and on the
+    /// periodic foreground timer, so a post shared while the TV sat on the Browse screen,
+    /// or while the app was in the background, shows up without a force-quit.
+    ///
+    /// Any load still in flight is superseded: its gist snapshot is already stale, and
+    /// whatever it resolved so far is in the cache for the new load to pick up for free.
+    func refreshIfStale(minimumInterval: TimeInterval = AppConfig.minimumRefreshInterval) {
+        if let last = lastLoadStartedAt, Date().timeIntervalSince(last) < minimumInterval {
+            return
+        }
+        loadTask?.cancel()
+        loadTask = Task { [weak self] in
+            await self?.loadPosts()
+        }
     }
 
     /// Watched ids known before the load starts, so the provider can resolve them last.

@@ -1,8 +1,8 @@
 ---
 title: "STATUS - Upvote TV"
 created: 2026-07-24
-modified: 2026-10-09
-version: 1.9
+modified: 2026-10-15
+version: 1.10
 author: Claude Fable 5.1 (claude-fable-5-1)
 tags:
 ---
@@ -24,6 +24,8 @@ Live (all six planned v1 phases are done and shipped; Phase 7, the optional Redd
 **1. The post-RSS resolver exists and works.** Reddit's full post page (`reddit.com/comments/{id}/`) carries everything the RSS feed did plus the NSFW flag, including the `v.redd.it` HLS URL, behind a small JavaScript challenge whose answer is a 16-character constant in the served script, doubled. It was built into `RedditMetadataResolver` as the fallback tier between RSS and OpenGraph (`Shared/RedditPostPage.swift`), with a second `RedditRateLimiter` profile for the page's separate budget (~225 units per ~6-minute window, 2 units a page, so a 100-item queue fits in one window). Verified live against the real queue from a plain client with a tvOS-style User-Agent: 8/8 posts from Python, 4/4 from the Swift resolver, every video with a playable HLS URL, the one moderator-removed post correctly surfaced as a dead card, challenge solved once per session. RSS stays primary until it stops answering on 2026-11-13; nothing changes on the TV before then. The remaining exposure is Reddit hardening the challenge: the solver recognises exactly one script shape and falls through to OpenGraph (titles, no video) on anything else. Also learned the hard way: doubling the form's 64-character `jsc_token` instead of the script constant earns a 403 "blocked by network security" page, which is what the 2026-10-01 note's "token+token" shorthand would have produced.
 
 **2. The zero-metadata mystery is solved: stale build on the phone.** The live gist (98 items, 27 shared since September) carried no `metadata` blocks because the envelope's `version` is 1, and the version-2 writer only landed in git on 2026-08-02. Justin's iPhone was still running the April Share Extension. The resolver code itself resolved the three newest queue posts in ~0.2 s each from the Mac. The Mobile app (with the Share Extension) was rebuilt and installed on Justin's iPhone via devicectl at 01:30, so share-time metadata is live on that phone. The final build with the page resolver (commit `d80d593`) was then installed on both Justin's iPhone and the living-room Apple TV at ~11:40, after the devicectl tunnel wedged for an hour and had to be cleared by restarting the CoreDevice/RemotePairing services (noted in `INSTALL.md` under `Upvote TV/build/ready-to-install/`). **Other household phones still run the old build** and need the same reinstall; until then their shares arrive bare and the TV resolves them, exactly as before.
+
+**2026-10-15: the stale-queue-until-force-quit bug is fixed.** Justin reported having to force-quit and relaunch to see new shares. Cause: the Browse screen loaded the queue once in its initial `.task`, and tvOS keeps the app alive in the background, so nothing ever re-ran it. Fix: `GalleryViewModel.refreshIfStale` runs on every return to the foreground (`scenePhase == .active`) and on a 2-minute timer while Browse is on screen; triggers within 15 s are coalesced, an in-flight load is superseded, and a failed refresh keeps the current list rather than throwing up the error screen (cached content is the safety net). Four new view-model tests cover it. Built and installed on the living-room Apple TV the same evening.
 
 Yellow rather than green because (a) the Browse list has still not been watched filling in titles on the real device since the August limiter fix, (b) the page path has only been exercised from the Mac, not yet on the Apple TV, and (c) no share has yet been confirmed landing with a metadata block from the reinstalled phone.
 
@@ -67,7 +69,7 @@ Reddit hardens the JavaScript challenge in front of the post page. It is a bot g
 
 - **Resolver diagnostics screen on tvOS** (S) - show both rate-limit budgets, which tier answered each post, and whether the page challenge was solved this session; would have shortened every Reddit investigation so far
 - **Search or filter within the queue** (S) - listed as a v2+ future consideration, no design work started
-- **Manual refresh gesture** (S) - small UX addition, listed as a future consideration
+- **Manual refresh gesture** (S) - mostly moot now that the queue refreshes on foreground and every 2 minutes; a play/pause-to-refresh would still help the "I just shared it, show me now" moment
 - **Auto-prune or flag dead posts** (S) - the resolver detects deleted/removed posts; offer to drop them from the queue instead of just labelling them
 - **Watched-state sync via CloudKit** (M) - so a post watched in the living room also shows watched on the bedroom Apple TV
 - **Additional source support (Twitter/X, Instagram Reels, TikTok, Bluesky)** (L) - each needs its own metadata resolver and domain whitelist entry
